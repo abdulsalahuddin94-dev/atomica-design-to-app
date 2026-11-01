@@ -7,6 +7,8 @@ import os from "node:os";
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 const { userEnv } = createRequire(import.meta.url)("../tools/publish_checks.cjs");
+const figmaSync = createRequire(import.meta.url)("../tools/figma_sync.cjs");
+const figmaToken = () => { try { return createRequire(import.meta.url)("../tools/figma_versions.cjs").token(); } catch { return null; } };
 
 const readJson = (file, fallback = null) => {
   try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
@@ -556,6 +558,20 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
   }
   if (req.method === "POST" && m[2] === "preview/start") { const r = await startPreview(dir); send(res, r.ok ? 200 : 400, r.ok ? await designState(dir) : r); return true; }
   if (req.method === "POST" && m[2] === "preview/stop") { const r = stopPreview(dir); send(res, r.ok ? 200 : 400, r.ok ? await designState(dir) : r); return true; }
+  // Two-way Figma sync (tools/figma_sync.cjs): what waits for Figma, and what changed in Figma since the last sync.
+  if (req.method === "GET" && m[2] === "figma-sync") {
+    const snap = readJson(figmaSync.snapFile(dir), { screens: {} });
+    send(res, 200, { pending: figmaSync.pendingToFigma(dir), lastCheck: snap.lastCheck || null, screens: figmaSync.screenDefs(dir).map((x) => ({ slug: x.slug, name: x.name })) });
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "figma-sync/check") { send(res, 200, await figmaSync.check(dir, figmaToken())); return true; }
+  if (req.method === "POST" && m[2] === "figma-sync/mark") {
+    const b = await readBody(req);
+    const slugs = (Array.isArray(b.slugs) ? b.slugs : []).filter((x) => /^[\w-]+$/.test(x));
+    await figmaSync.mark(dir, slugs, figmaToken());
+    send(res, 200, { ok: true, marked: slugs });
+    return true;
+  }
   if (req.method === "GET" && m[2] === "publish-check") {
     // the preflight for this project's repo (or the repo it would create), in the user's full environment
     const st = await designState(dir);

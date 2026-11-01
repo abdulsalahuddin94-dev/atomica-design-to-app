@@ -205,7 +205,8 @@ async function checkFolder(folder) {
   try { return compare({ folder, status }, result); } catch (e) { return null; }
 }
 
-module.exports = { check, describe, checkFolder };
+// token() is shared with tools/figma_sync.cjs; it is never printed or written.
+module.exports = { check, describe, checkFolder, token };
 
 if (require.main === module) {
   main(process.argv.slice(2)).catch(() => {}).finally(() => { process.exitCode = 0; });

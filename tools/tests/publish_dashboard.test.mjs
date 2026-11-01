@@ -146,3 +146,34 @@ test("no hover: a Web project may keep its hover", () => {
   const dir = fakeProject("Web", ".btn:hover { opacity: .88 }\n", ["Enabled", "Hovered"]);
   assert.equal(isMobileProject(dir), false);
 });
+
+// Two-way Figma sync (tools/figma_sync.cjs): the comparison never hides a change and never overwrites silently.
+const { diffSync, stripPage } = require("../figma_sync.cjs");
+const snap = { screens: { home: { figmaHash: "f1", codeHash: "c1", figmaMethod: "figcli" }, cart: { figmaHash: "f2", codeHash: "c2", figmaMethod: "figcli" }, about: { figmaHash: "f3", codeHash: "c3", figmaMethod: "figcli" } } };
+test("sync: changed on one side, on both sides (conflict), in sync", () => {
+  const rows = diffSync({ snapshot: snap, figma: { method: "figcli", screens: { home: { exists: true, hash: "F1" }, cart: { exists: true, hash: "F2" }, about: { exists: true, hash: "f3" } } }, code: { home: "c1", cart: "C2", about: "c3" } });
+  const by = Object.fromEntries(rows.map((r) => [r.slug, r.status]));
+  assert.equal(by.home, "figma-changed");
+  assert.equal(by.cart, "conflict");
+  assert.equal(by.about, "in-sync");
+});
+test("sync: a pending code-first change counts as a prototype change even before a snapshot", () => {
+  const rows = diffSync({ snapshot: { screens: {} }, figma: { method: "figcli", screens: { home: { exists: true, hash: "x" } } }, code: { home: "c" }, pendingSlugs: ["home"] });
+  assert.equal(rows[0].status, "prototype-changed");
+});
+test("sync: new frames, removed frames and code-only screens", () => {
+  const rows = diffSync({ snapshot: snap, figma: { method: "figcli", screens: { home: { exists: false }, draft: { codeOnly: true } }, newFrames: [{ id: "9:1", name: "Settings" }] }, code: { home: "c1", draft: "d" } });
+  const by = Object.fromEntries(rows.map((r) => [r.slug, r.status]));
+  assert.equal(by.home, "removed-in-figma");
+  assert.equal(by.draft, "prototype-only");
+  assert.equal(by.settings, "new-in-figma");
+});
+test("sync: another reading method (REST vs FigCli) re-baselines instead of reporting a fake Figma change", () => {
+  const rows = diffSync({ snapshot: snap, figma: { method: "rest", screens: { home: { exists: true, hash: "different" } } }, code: { home: "c1" } });
+  assert.equal(rows[0].status, "baseline");
+  assert.equal(rows[0].rebaseline, true);
+});
+test("sync: page prefixes are dropped only when they are a real prefix", () => {
+  assert.equal(stripPage("Listen / Explore - Full", "Listen"), "Explore - Full");
+  assert.equal(stripPage("Listening Room", "Listen"), "Listening Room");
+});

@@ -311,3 +311,14 @@ body.rail.focus .shell{grid-template-columns:minmax(0,1fr)}
 .pchk-ok{display:flex;align-items:center;gap:6px;color:var(--good);margin:0}
 .pchk-ok .ic{width:14px;height:14px}
 .ws-pubpop input.mono{flex:1;min-width:0;border:1px solid var(--rule-2);border-radius:var(--r);padding:6px 8px;background:var(--sheet);color:var(--ink);font-size:12px}
+
+/* Sync with Figma */
+.ws-syncbtn{background:var(--sheet)!important;position:relative}
+.ws-count.rel{position:static;margin-left:4px}
+.ws-syncpop{width:440px}
+.ws-syncpop .slist{display:grid;gap:6px;max-height:220px;overflow:auto}
+.ws-syncpop .srow2{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.ws-syncpop .srow2 input{margin-top:3px}
+.ws-syncpop .srow2 p{margin:2px 0 0;unicode-bidi:plaintext}
+.ws-syncpop .srow2 select{margin-left:auto;border:1px solid var(--rule-2);border-radius:var(--r);background:var(--sheet);color:var(--ink);padding:3px 6px;font-size:12px}
+.ws-syncpop .conflict{color:var(--magenta-ink);margin:0}

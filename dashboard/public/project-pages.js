@@ -425,6 +425,8 @@ async function drawDesign(main, p) {
   const pop = el("div", { class: "ws-pop", role: "dialog", "aria-label": "Comment", hidden: true });
   const menu = el("div", { class: "ws-menu", role: "menu", hidden: true });
   const pubPop = el("div", { class: "ws-pubpop", role: "dialog", "aria-label": "Publish", hidden: true });
+  const syncPop = el("div", { class: "ws-pubpop ws-syncpop", role: "dialog", "aria-label": "Sync with Figma", hidden: true });
+  let syncSt = null; // tools/figma_sync.cjs state: pending (prototype -> Figma) and the last Figma check
   let pubCheck = null; // null | "running" | the preflight result (tools/publish_checks.cjs)
   async function runPublishCheck() {
     pubCheck = "running"; drawPubPop();
@@ -441,7 +443,7 @@ async function drawDesign(main, p) {
   }
   let publishError = null; // the last publish failure, shown in the panel until the next try
   let liveState = null; // null | "waiting" | "live": after a publish, until GitHub Pages serves the new build
-  const stage = el("section", { class: "ws-stage", "aria-label": "Prototype preview" }, canvas, pubBox, pubPop, list, pop, menu, pill, openPill);
+  const stage = el("section", { class: "ws-stage", "aria-label": "Prototype preview" }, canvas, pubBox, pubPop, syncPop, list, pop, menu, pill, openPill);
   main.append(chatCol, stage);
 
   let comments = []; // from the dashboard (pulled from Supabase): author, body, images, triage
@@ -494,7 +496,7 @@ async function drawDesign(main, p) {
     screenPick.value = view.screen;
     // "…": a menu above the pill (outside it, so the pill's scrolling never clips it)
     menu.replaceChildren(
-      el("button", { type: "button", onclick: () => { menu.hidden = true; pushToFigma(); } }, icon("i-upload"), "Push this screen to Figma"),
+      el("button", { type: "button", onclick: () => { menu.hidden = true; pushToFigma(); } }, icon("i-upload"), "Add this screen to Figma sync"),
       el("a", { href: screenUrl(false) || "#", target: "_blank", rel: "noopener", onclick: () => { menu.hidden = true; } }, icon("i-external"), "Open in a new tab"),
       el("a", { href: `#/project/${enc}/review` }, icon("i-message"), "All comments (Review)"));
     const more = el("button", { class: "ws-tool", type: "button", "aria-label": "More", title: "More", "aria-expanded": String(!menu.hidden), onclick: (ev) => {
@@ -527,7 +529,10 @@ async function drawDesign(main, p) {
       }
     } },
       st.unpublished ? el("span", { class: "dot bad", "aria-hidden": "true" }) : null, st.publishing ? "Publishing…" : "Publish");
-    pubBox.replaceChildren(pub);
+    const pendingN = syncSt ? syncSt.pending.length + ((syncSt.lastCheck?.rows || []).filter((r) => ["figma-changed", "new-in-figma", "conflict", "removed-in-figma"].includes(r.status)).length) : 0;
+    const syncBtn = el("button", { class: "ghost sm ws-syncbtn", type: "button", "aria-haspopup": "dialog", "aria-expanded": String(!syncPop.hidden), title: "What differs between the prototype and Figma", onclick: () => { syncPop.hidden = !syncPop.hidden; pubPop.hidden = true; if (!syncPop.hidden) loadSync(); drawSyncPop(); } },
+      icon("i-refresh"), "Sync with Figma", pendingN ? el("span", { class: "ws-count rel" }, String(pendingN)) : null);
+    pubBox.replaceChildren(syncBtn, pub);
     drawPubPop();
     drawList();
   }
@@ -611,27 +616,31 @@ async function drawDesign(main, p) {
     catch (e) { showError(e); }
     drawList(); postStatuses();
   }
+  // Sends a task to the Design chat: a short visible line, the full instructions as hidden context. Returns "queued"
+  // (Claude is busy and takes it next) or "in-progress".
+  async function sendToDesign(short, hidden, screenName) {
+    let live = null;
+    if (sessionId()) live = (await api("/api/sessions")).live.find((x) => x.id === sessionId());
+    if (!live && sessionId()) { await openChat(); live = (await api("/api/sessions")).live.find((x) => x.id === sessionId()); }
+    if (live) {
+      await api(`/api/sessions/${live.id}/message`, { text: short, context: hidden });
+      return live.busy ? "queued" : "in-progress";
+    }
+    const s = await api("/api/sessions", { prompt: short, context: `${DESIGN_CONTEXT(p.name, st.designMode || "code-first", screenName || "", view.where === "local" ? "local preview" : "live link")}\n\n${hidden}`, project: p.name, title: `Design: ${p.title}` });
+    writeStore(designKey(p.name), { id: s.id, claudeSessionId: s.claudeSessionId || null });
+    mountChat(s.id);
+    return "in-progress";
+  }
   async function applyNow(c) {
     if (!st.designMode) { pendingApply = c; toast("Pick Code first or Figma first above; the comment goes to Claude right after."); return; }
     const screen = st.screens.find((s) => s.slug === c.screen)?.name || c.screen;
     const short = `Apply ${c.author || "a reviewer"}'s comment on ${screen}${c.component ? ` · ${c.component}` : ""}: «${c.body}»`;
     const hidden = APPLY_CONTEXT(c, screen);
     try {
-      let live = null;
-      if (sessionId()) live = (await api("/api/sessions")).live.find((x) => x.id === sessionId());
-      if (!live && sessionId()) { await openChat(); live = (await api("/api/sessions")).live.find((x) => x.id === sessionId()); }
-      let status = "in-progress";
-      if (live) {
-        status = live.busy ? "queued" : "in-progress";
-        await api(`/api/sessions/${live.id}/message`, { text: short, context: hidden });
-      } else {
-        const s = await api("/api/sessions", { prompt: short, context: `${DESIGN_CONTEXT(p.name, st.designMode, screen, view.where === "local" ? "local preview" : "live link")}\n\n${hidden}`, project: p.name, title: `Design: ${p.title}` });
-        writeStore(designKey(p.name), { id: s.id, claudeSessionId: s.claudeSessionId || null });
-        mountChat(s.id);
-      }
+      const status = await sendToDesign(short, hidden, screen);
       await setStatus(c, status);
       toast(status === "queued" ? "Queued: Claude takes it right after the current task." : "Sent to Claude.");
-      watchApply(c, sessionId(), c.triage?.kind === "flow" || /flow|فلو|new (screen|page)|(صمم|اعمل) (صفحة|شاشة)|(صفحة|شاشة) جديدة/i.test(c.body));
+      watchApply(c, sessionId(), c.triage?.kind === "flow" || /\bflow\b|فلو|\bnew (screen|page)\b|(صمم|اعمل) (صفحة|شاشة)|(صفحة|شاشة) جديدة/i.test(c.body));
     } catch (e) { showError(e); }
   }
   async function watchApply(c, id, planFirst) {
@@ -656,6 +665,83 @@ async function drawDesign(main, p) {
   function postStatuses() {
     const map = Object.fromEntries(comments.filter((x) => ["queued", "in-progress", "applied", "needs-ok"].includes(x.triage?.status)).map((x) => [x.id, x.triage.status]));
     try { frame.contentWindow?.postMessage({ type: "atomica:pin-status", map }, "*"); } catch {}
+  }
+  // ----- Sync with Figma: prototype -> Figma, Figma -> prototype, conflicts -----
+  const SYNC_LABEL = { "figma-changed": "Changed in Figma", "new-in-figma": "New in Figma", "removed-in-figma": "Removed in Figma", conflict: "Changed on both sides", "prototype-changed": "Changed in the prototype", "prototype-only": "Only in the prototype", "in-sync": "In sync", baseline: "First check" };
+  let syncChecking = false;
+  const pushPicked = new Set(), pullPicked = new Set(), conflictPick = {};
+  const pushSeen = new Set(); // every newly listed item starts ticked; the user's untick is kept
+  async function loadSync() {
+    try { syncSt = await api(`/api/project/${enc}/figma-sync`); for (const i of syncSt.pending) if (!pushSeen.has(i.id)) { pushSeen.add(i.id); pushPicked.add(i.id); } } catch (e) { showError(e); }
+    drawBar(); drawSyncPop();
+  }
+  async function checkFigma() {
+    syncChecking = true; drawSyncPop();
+    try {
+      const r = await api(`/api/project/${enc}/figma-sync/check`, {});
+      if (r.error) toast(r.error); else syncSt = { ...syncSt, pending: r.pending, lastCheck: { at: r.checkedAt, rows: r.rows, baseline: r.baseline } };
+      for (const row of syncSt.lastCheck?.rows || []) if (["figma-changed", "new-in-figma"].includes(row.status)) pullPicked.add(row.slug);
+    } catch (e) { showError(e); }
+    syncChecking = false; drawBar(); drawSyncPop();
+  }
+  const figmaToolNow = () => (figmaToolsCache ? figmaToolName(figmaToolsCache.default) : "the saved Figma tool");
+  function drawSyncPop() {
+    if (syncPop.hidden) return;
+    if (!syncSt) { syncPop.replaceChildren(el("p", { class: "small muted" }, "Reading the sync state…")); return; }
+    const status = st.designMode ? null : null;
+    const rows = syncSt.lastCheck?.rows || [];
+    const pull = rows.filter((r) => ["figma-changed", "new-in-figma", "removed-in-figma"].includes(r.status));
+    const conflicts = rows.filter((r) => r.status === "conflict");
+    const inSync = rows.filter((r) => r.status === "in-sync").length;
+    const nameOf = (slug, fallback) => syncSt.screens?.find((x) => x.slug === slug)?.name || fallback || slug;
+    const check = (set, id) => el("input", { type: "checkbox", checked: set.has(id) || null, onchange: (ev) => { ev.target.checked ? set.add(id) : set.delete(id); drawSyncPop(); } });
+    const ds = syncSt.pending.filter((i) => i.kind === "ds"), scr = syncSt.pending.filter((i) => i.kind !== "ds");
+    const itemRow = (i) => el("label", { class: "srow2" }, check(pushPicked, i.id), el("span", {}, el("b", {}, i.screen || (i.kind === "ds" ? "Design system" : "Screen")), el("span", { class: "small muted" }, ` · ${i.file || ""}`), el("p", { class: "small", dir: "auto" }, String(i.title).slice(0, 180))));
+    const pushN = syncSt.pending.filter((i) => pushPicked.has(i.id)).length;
+    const pullN = pull.filter((r) => pullPicked.has(r.slug)).length + conflicts.filter((r) => conflictPick[r.slug]).length;
+    syncPop.replaceChildren(...[
+      el("header", {}, el("span", { class: "dot run" }), el("b", {}, "Sync with Figma"),
+        el("button", { class: "iconbtn sq", type: "button", "aria-label": "Close", onclick: () => { syncPop.hidden = true; drawBar(); } }, icon("i-x"))),
+      el("p", { class: "muted small" }, `Figma tool: ${figmaToolNow()}. Nothing is written to Figma until you press Sync.`),
+      // prototype -> Figma
+      el("div", { class: "pub-url" }, el("span", { class: "kicker" }, `Prototype → Figma · ${syncSt.pending.length}`),
+        syncSt.pending.length ? el("div", { class: "slist" },
+          ds.length ? el("p", { class: "small muted" }, "1. Design system first (then publish the library):") : null, ...ds.map(itemRow),
+          scr.length ? el("p", { class: "small muted" }, `${ds.length ? "2. " : ""}Screens in the Design file:`) : null, ...scr.map(itemRow))
+          : el("p", { class: "small muted" }, "Nothing waiting: Figma has every prototype change."),
+        syncSt.pending.length ? el("div", { class: "row" }, el("span", { style: "flex:1" }), el("button", { class: "primary sm", type: "button", disabled: !pushN || null, onclick: syncToFigma }, `Sync ${pushN} item${pushN === 1 ? "" : "s"} to Figma`)) : null),
+      // Figma -> prototype
+      el("div", { class: "pub-url" }, el("span", { class: "kicker" }, "Figma → Prototype"),
+        el("div", { class: "row" }, el("span", { class: "small muted", style: "flex:1" }, syncSt.lastCheck?.at ? `Last checked ${fmtDate(syncSt.lastCheck.at)}${inSync ? ` · ${inSync} in sync` : ""}` : "Not checked yet."),
+          el("button", { class: "ghost sm", type: "button", disabled: syncChecking || null, onclick: checkFigma }, icon("i-refresh"), syncChecking ? "Checking…" : "Check Figma for changes")),
+        syncSt.lastCheck?.baseline ? el("p", { class: "small muted" }, "First check: this is now the starting point; later Figma edits show here.") : null,
+        pull.length ? el("div", { class: "slist" }, pull.map((r) => el("label", { class: "srow2" }, check(pullPicked, r.slug), el("span", {}, el("b", {}, r.name || nameOf(r.slug)), el("span", { class: "small muted" }, ` · ${SYNC_LABEL[r.status]}`))))) : syncSt.lastCheck ? el("p", { class: "small muted" }, "No new Figma changes for the prototype.") : null,
+        conflicts.length ? el("div", { class: "slist" }, el("p", { class: "small conflict" }, "Changed on both sides since the last sync: choose what wins."),
+          conflicts.map((r) => el("div", { class: "srow2" }, el("span", {}, el("b", {}, nameOf(r.slug))),
+            el("select", { "aria-label": `Which wins for ${nameOf(r.slug)}`, onchange: (ev) => { conflictPick[r.slug] = ev.target.value || null; drawSyncPop(); } },
+              el("option", { value: "" }, "Decide…"), el("option", { value: "figma", selected: conflictPick[r.slug] === "figma" || null }, "Figma wins"), el("option", { value: "prototype", selected: conflictPick[r.slug] === "prototype" || null }, "Prototype wins"), el("option", { value: "both", selected: conflictPick[r.slug] === "both" || null }, "Keep both"))))) : null,
+        pull.length || conflicts.length ? el("div", { class: "row" }, el("span", { style: "flex:1" }), el("button", { class: "primary sm", type: "button", disabled: !pullN || null, onclick: pullFromFigma }, `Pull ${pullN} into the prototype`)) : null),
+    ].filter(Boolean));
+  }
+  async function syncToFigma() {
+    const items = syncSt.pending.filter((i) => pushPicked.has(i.id));
+    if (!items.length) return;
+    const short = `Sync ${items.length} prototype change${items.length === 1 ? "" : "s"} to Figma`;
+    const hidden = `The user pressed "Sync to Figma" in the Design page (that press is the approval to write to Figma for these items only). Figma tool: ${figmaToolNow()} (status.json > figma.tool and the workflow's tool rules). Do them in this order: design-system changes first in the DS file (then remind the user to publish the library and Accept updates in the Design file), then screens in the Design file, built only from library instances and variables. Items:\n${items.map((i, n) => `${n + 1}. [${i.kind}] ${i.screen || ""} · ${i.file || ""} · ${i.title}`).join("\n")}\nAfter each item: audit it, run the fidelity check, remove it from status.json > prototype.pending_figma_sync (and data/sync-queue.json), record the screen as in sync with: node tools/figma_sync.cjs "My Projects/${p.name}" --mark <slug>, and add a CHANGELOG entry. Stop and ask before anything outside these items.`;
+    try { const s = await sendToDesign(short, hidden); toast(s === "queued" ? "Queued: Claude takes the sync after the current task." : "Sent to Claude: the sync is running in the chat."); syncPop.hidden = true; drawBar(); }
+    catch (e) { showError(e); }
+  }
+  async function pullFromFigma() {
+    const rows = syncSt.lastCheck?.rows || [];
+    const take = rows.filter((r) => ["figma-changed", "new-in-figma", "removed-in-figma"].includes(r.status) && pullPicked.has(r.slug));
+    const conf = rows.filter((r) => r.status === "conflict" && conflictPick[r.slug]);
+    if (!take.length && !conf.length) return;
+    const nameOf = (r) => r.name || syncSt.screens?.find((x) => x.slug === r.slug)?.name || r.slug;
+    const lines = [...take.map((r) => `- ${nameOf(r)}: ${SYNC_LABEL[r.status]}${r.id ? ` (Figma ${r.id})` : ""}`), ...conf.map((r) => `- ${nameOf(r)}: changed on both sides; the user chose: ${{ figma: "Figma wins (the prototype's code-first change for it is dropped)", prototype: "the prototype wins (keep the code-first change; it stays pending for Figma)", both: "keep both (the Figma version becomes a second screen next to the prototype's)" }[conflictPick[r.slug]]}`)];
+    const short = `Pull ${lines.length} Figma change${lines.length === 1 ? "" : "s"} into the prototype`;
+    const hidden = `The user pressed "Pull into the prototype" in the Design page. Bring these Figma changes into the prototype:\n${lines.join("\n")}\nRe-export the screens from the Design file (tools/screens_export.cjs with --only for these screens; new frames become new prototype screens), rebuild with tools/build_prototype.py (DS components and tokens only, 0 raw values, 0 unknown names), run the prototype's checks and the fidelity check, then record them as in sync: node tools/figma_sync.cjs "My Projects/${p.name}" --mark <slugs>. Never overwrite a screen changed on both sides except as the user chose above. Write nothing to Figma.`;
+    try { const s = await sendToDesign(short, hidden); toast(s === "queued" ? "Queued: Claude pulls after the current task." : "Sent to Claude: the pull is running in the chat."); syncPop.hidden = true; drawBar(); }
+    catch (e) { showError(e); }
   }
   async function replyClose(c) {
     const reply = await askText({ title: "Reply & close", help: `The reply shows under ${c.author || "this"} comment in the prototype.`, okLabel: "Reply & close", placeholder: "What changed…" });
@@ -753,6 +839,8 @@ async function drawDesign(main, p) {
     history.replaceState(null, "", `#/project/${enc}/design`);
   }
   drawMode(); drawBar(); loadFrame();
+  api(`/api/project/${enc}/figma-sync`).then((r) => { syncSt = r; drawBar(); }).catch(() => {});
+  getFigmaTools().catch(() => {});
   await openChat();
   if (applyOnLoad) applyNow(applyOnLoad);
 }
