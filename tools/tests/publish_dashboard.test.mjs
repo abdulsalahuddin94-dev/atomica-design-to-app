@@ -177,3 +177,40 @@ test("sync: page prefixes are dropped only when they are a real prefix", () => {
   assert.equal(stripPage("Listen / Explore - Full", "Listen"), "Explore - Full");
   assert.equal(stripPage("Listening Room", "Listen"), "Listening Room");
 });
+
+// Add-ons (2026-11-01): the daily check, ownership rules, the code repo as a third side.
+const { compareWatch, codeRepoOf } = require("../sync_watch.cjs");
+const { proposalFor, codeItems, saveRules, readRules, DEFAULT_RULES } = require("../figma_sync.cjs");
+test("daily check: no change means nothing to say; a new Figma version or commit is a change", () => {
+  const prev = { figmaVersion: "v1", codeCommit: "c1" };
+  assert.equal(compareWatch(prev, { figmaVersion: "v1", codeCommit: "c1" }).changed, false);
+  assert.equal(compareWatch(prev, { figmaVersion: null, codeCommit: null }).changed, false, "a failed read is not a change");
+  assert.equal(compareWatch(null, { figmaVersion: "v1" }).first, true, "the first run only records");
+  assert.equal(compareWatch(null, { figmaVersion: "v1" }).changed, false);
+  const r = compareWatch(prev, { figmaVersion: "v2", codeCommit: "c2" });
+  assert.deepEqual(r.changes.map((c) => c.side), ["figma", "code"]);
+});
+test("daily check: a linked code repo is read from status.json in either form", () => {
+  assert.equal(codeRepoOf({ code_repo: "https://github.com/o/app" }).url, "https://github.com/o/app.git");
+  assert.equal(codeRepoOf({ code_repo: { url: "https://github.com/o/app.git", branch: "main" } }).branch, "main");
+  assert.equal(codeRepoOf({}), null);
+});
+test("ownership: an owned conflict gets the owner's side; mixed owners stay a question; a screen rule wins", () => {
+  assert.equal(proposalFor("home", DEFAULT_RULES, ["Primary color changed to green"]).side, "figma");
+  assert.equal(proposalFor("home", DEFAULT_RULES, ["New status filter on the list"]).side, "code");
+  assert.equal(proposalFor("home", DEFAULT_RULES, ["New filter", "and a new color"]), null);
+  assert.equal(proposalFor("home", { ...DEFAULT_RULES, screens: { home: "code" } }, ["color"]).side, "code");
+});
+test("ownership: saved rules keep only figma, code or null", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "atomica-test-rules-"));
+  saveRules(dir, { screens: { home: "figma", bad: "everyone" }, categories: { colors: "code", "x y": "figma" } });
+  const r = readRules(dir);
+  assert.equal(r.screens.home, "figma");
+  assert.equal(r.screens.bad, undefined);
+  assert.equal(r.categories.colors, "code");
+  assert.equal(r.categories["x y"], undefined);
+});
+test("code repo: new commits become items; merges and housekeeping are left out", () => {
+  const items = codeItems("a1\tAdd status filter to Action Tracker\nb2\tchore: bump deps\nc3\tMerge pull request #4\nd4\tFix copy on the empty state");
+  assert.deepEqual(items.map((i) => i.sha), ["a1", "d4"]);
+});

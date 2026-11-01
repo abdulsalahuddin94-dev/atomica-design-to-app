@@ -278,16 +278,94 @@ async function check(dir, tok) {
   const baseline = !Object.keys(snapshot.screens || {}).length;
   if (baseline) { await mark(dir, screenDefs(dir).map((d) => d.slug), tok); }
   const rows = diffSync({ snapshot: baseline ? readJson(snapFile(dir)) : snapshot, figma: fig, code: codeState(dir), pendingSlugs: pendingSlugs(dir) });
+  // owned conflicts get the owner's side as the proposal (sync-rules.json); unowned ones stay a question
+  const rules = readRules(dir);
+  const pend = pendingToFigma(dir);
+  for (const r of rows) if (r.status === 'conflict') { const p = proposalFor(r.slug, rules, pend.filter((i) => i.slug === r.slug).map((i) => i.title)); if (p) r.proposal = p; }
+  // the code repo: commits since the last sync (status.json > code_repo)
+  const st = readJson(path.join(dir, 'status.json'), {});
+  const repo = st.code_repo ? { url: /\.git$/.test(st.code_repo.url || st.code_repo) ? (st.code_repo.url || st.code_repo) : String(st.code_repo.url || st.code_repo).replace(/\/+$/, '') + '.git', branch: st.code_repo.branch || null } : null;
+  let code = null;
+  if (repo) {
+    const snapNow = readJson(snapFile(dir), { screens: {} });
+    const lg = codeLog(repo, snapNow.codeSyncedCommit || null);
+    if (lg.error) code = { error: lg.error };
+    else {
+      if (!snapNow.codeSyncedCommit) { snapNow.codeSyncedCommit = lg.head; fs.writeFileSync(snapFile(dir), JSON.stringify(snapNow, null, 1) + '\n'); }
+      code = { repo: repo.url.replace(/\.git$/, ''), head: lg.head, items: lg.items, baseline: !readJson(snapFile(dir), {}).codeSyncedCommit };
+    }
+  }
   const rebase = rows.filter((r) => r.rebaseline && r.status === 'baseline').map((r) => r.slug);
   if (rebase.length) await mark(dir, rebase, tok);
-  const out = { checkedAt: new Date().toISOString(), baseline, method: fig.method, file: fig.file, rows, pending: pendingToFigma(dir) };
+  const out = { checkedAt: new Date().toISOString(), baseline, method: fig.method, file: fig.file, rows, pending: pendingToFigma(dir), code };
   const snap2 = readJson(snapFile(dir), { screens: {} });
   snap2.lastCheck = { at: out.checkedAt, rows };
   fs.writeFileSync(snapFile(dir), JSON.stringify(snap2, null, 1) + '\n');
   return out;
 }
 
-module.exports = { screenDefs, codeHash, pendingToFigma, diffSync, figmaState, mark, check, codeState, snapFile, slugify, baseName, stripPage };
+
+// ----- Ownership rules: <project>/sync-rules.json (editable) -----
+// Who owns what when both sides changed: e.g. colors, type, spacing and variables belong to Figma, component props and
+// behavior to the code. An owned conflict gets the owner's side as the proposal (still applied only on the user's press);
+// only unowned conflicts are asked as a question.
+const DEFAULT_RULES = {
+  _help: 'Who wins when Figma and the prototype/code both changed the same thing: "figma", "code" or null (ask). screens: per screen slug; categories: by what the change is about.',
+  screens: {},
+  categories: { colors: 'figma', typography: 'figma', spacing: 'figma', radius: 'figma', variables: 'figma', icons: 'figma', props: 'code', behavior: 'code', copy: null, layout: null },
+};
+const rulesFile = (dir) => path.join(dir, 'sync-rules.json');
+function readRules(dir) {
+  const r = readJson(rulesFile(dir), null);
+  return r && typeof r === 'object' ? { ...DEFAULT_RULES, ...r, categories: { ...DEFAULT_RULES.categories, ...(r.categories || {}) }, screens: r.screens || {} } : DEFAULT_RULES;
+}
+function saveRules(dir, rules) {
+  const clean = { _help: DEFAULT_RULES._help, screens: {}, categories: {} };
+  const ok = (v) => v === 'figma' || v === 'code' || v === null;
+  for (const [k, v] of Object.entries(rules?.screens || {})) if (/^[\w-]+$/.test(k) && ok(v)) clean.screens[k] = v;
+  for (const [k, v] of Object.entries(rules?.categories || {})) if (/^[\w-]+$/.test(k) && ok(v)) clean.categories[k] = v;
+  fs.writeFileSync(rulesFile(dir), JSON.stringify(clean, null, 2) + '\n');
+  return clean;
+}
+// What a change is about, from its words.
+const CATEGORY_WORDS = {
+  colors: /colou?r|fill|palette|token|tint|contrast/i, typography: /font|type(face)?|text style|typography|weight|size \d/i,
+  spacing: /spacing|padding|margin|gap|space/i, radius: /radius|corner|rounded/i, variables: /variable|mode|light\/dark/i, icons: /icon/i,
+  props: /prop|variant|state|property|filter|option|toggle|field/i, behavior: /behaviou?r|interaction|navigat|flow|click|tap|scroll/i, copy: /copy|text|label|wording|translation|string/i, layout: /layout|section|order|remove|add|repeat/i,
+};
+function categorize(text) { return Object.entries(CATEGORY_WORDS).filter(([, re]) => re.test(String(text || ''))).map(([k]) => k); }
+// The proposal for one conflicting screen: its own rule, else one owner shared by every category its changes touch.
+function proposalFor(slug, rules, texts = []) {
+  const own = rules?.screens?.[slug];
+  if (own === 'figma' || own === 'code') return { side: own, why: `sync-rules.json gives ${slug} to ${own === 'figma' ? 'Figma' : 'the code'}` };
+  const cats = [...new Set(texts.flatMap(categorize))];
+  const owners = [...new Set(cats.map((c) => rules?.categories?.[c]).filter((v) => v === 'figma' || v === 'code'))];
+  if (cats.length && owners.length === 1 && cats.every((c) => rules.categories[c] === owners[0])) return { side: owners[0], why: `${cats.join(', ')} belong to ${owners[0] === 'figma' ? 'Figma' : 'the code'} (sync-rules.json)` };
+  return null;
+}
+
+// ----- The code repo as a third side: status.json > code_repo { url, branch } -----
+// New commits since the last sync become items ("add to Figma?"); merges and housekeeping are left out.
+function codeItems(logText) {
+  return String(logText || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => { const [sha, ...rest] = l.split('\t'); return { sha, subject: rest.join('\t').trim() }; })
+    .filter((c) => c.sha && c.subject && !/^(merge\b|chore|bump|deps|ci\b|build\b|wip\b|revert "?merge)/i.test(c.subject));
+}
+function repoCache(url) { const os = require('os'); return path.join(os.homedir(), '.atomica', 'repos', sha(url)); }
+function codeLog(repo, from) {
+  const { execFileSync } = require('child_process');
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  const dir = repoCache(repo.url);
+  try {
+    if (!fs.existsSync(path.join(dir, '.git')) && !fs.existsSync(path.join(dir, 'HEAD'))) { fs.mkdirSync(path.dirname(dir), { recursive: true }); execFileSync('git', ['clone', '--quiet', '--filter=blob:none', '--no-checkout', repo.url, dir], { env, timeout: 120000 }); }
+    else execFileSync('git', ['-C', dir, 'fetch', '--quiet', 'origin'], { env, timeout: 120000 });
+    const head = execFileSync('git', ['-C', dir, 'rev-parse', repo.branch ? `origin/${repo.branch}` : 'origin/HEAD'], { env, encoding: 'utf8' }).trim();
+    if (!from) return { head, items: [] };
+    const log = execFileSync('git', ['-C', dir, 'log', '--no-merges', '--format=%h%x09%s', `${from}..${head}`], { env, encoding: 'utf8', maxBuffer: 8 << 20 });
+    return { head, items: codeItems(log) };
+  } catch (e) { return { error: 'The code repo could not be read: ' + String(e.message || e).split('\n')[0].slice(0, 160) }; }
+}
+
+module.exports = { screenDefs, codeHash, pendingToFigma, diffSync, figmaState, mark, check, codeState, snapFile, slugify, baseName, stripPage, readRules, saveRules, proposalFor, categorize, codeItems, codeLog, DEFAULT_RULES };
 
 if (require.main === module) {
   const args = process.argv.slice(2);

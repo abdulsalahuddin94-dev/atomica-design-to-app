@@ -347,6 +347,32 @@ function stopPreview(dir) {
   return { ok: true };
 }
 
+// The daily sync check as a Windows scheduled task ("Atomica sync check"): it runs tools/sync_watch.cjs for every project
+// (no AI, no tokens; a change only writes a short note for the Sync badge). Created and removed only from the user's
+// click. The command lives in ~/.atomica/sync-check.cmd so paths with spaces stay safe.
+const TASK = "Atomica sync check";
+function syncSchedule() {
+  if (process.platform !== "win32") return { supported: false };
+  const r = spawnSync("schtasks", ["/Query", "/TN", TASK, "/FO", "LIST"], { encoding: "utf8", windowsHide: true, timeout: 15000 });
+  if (r.status !== 0) return { supported: true, on: false };
+  const next = (r.stdout.match(/Next Run Time:\s*(.+)/i) || [])[1]?.trim() || null;
+  return { supported: true, on: true, next };
+}
+function setSyncSchedule(on, root, projectsDir, time) {
+  if (process.platform !== "win32") return { ok: false, error: "The daily check is a Windows scheduled task; on a Mac run node tools/sync_watch.cjs --all from cron." };
+  if (!on) {
+    const r = spawnSync("schtasks", ["/Delete", "/TN", TASK, "/F"], { encoding: "utf8", windowsHide: true, timeout: 15000 });
+    return r.status === 0 || /cannot find/i.test(r.stderr) ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim() };
+  }
+  const at = /^\d{2}:\d{2}$/.test(String(time || "")) ? time : "09:00";
+  const dir = path.join(os.homedir(), ".atomica");
+  fs.mkdirSync(dir, { recursive: true });
+  const cmd = path.join(dir, "sync-check.cmd");
+  fs.writeFileSync(cmd, `@echo off\r\nrem Atomica daily sync check (no AI): Figma and code repo versions against the last sync.\r\n"${process.execPath}" "${path.join(root, "tools", "sync_watch.cjs")}" --all --projects "${projectsDir}" >> "${path.join(dir, "sync-check.log")}" 2>&1\r\n`);
+  const r = spawnSync("schtasks", ["/Create", "/TN", TASK, "/TR", `"${cmd}"`, "/SC", "DAILY", "/ST", at, "/F"], { encoding: "utf8", windowsHide: true, timeout: 15000 });
+  return r.status === 0 ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim() };
+}
+
 // A new project's suggested repo: <GitHub login>/<project-slug>-prototype (created only after the user's click).
 function suggestRepo(dir) {
   const r = spawnSync("gh", ["api", "user", "--jq", ".login"], { encoding: "utf8", windowsHide: true, timeout: 15000, env: userEnv() });
@@ -561,7 +587,37 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
   // Two-way Figma sync (tools/figma_sync.cjs): what waits for Figma, and what changed in Figma since the last sync.
   if (req.method === "GET" && m[2] === "figma-sync") {
     const snap = readJson(figmaSync.snapFile(dir), { screens: {} });
-    send(res, 200, { pending: figmaSync.pendingToFigma(dir), lastCheck: snap.lastCheck || null, screens: figmaSync.screenDefs(dir).map((x) => ({ slug: x.slug, name: x.name })) });
+    const status = readJson(path.join(dir, "status.json"), {});
+    send(res, 200, {
+      pending: figmaSync.pendingToFigma(dir), lastCheck: snap.lastCheck || null, screens: figmaSync.screenDefs(dir).map((x) => ({ slug: x.slug, name: x.name })),
+      rules: figmaSync.readRules(dir), codeRepo: status.code_repo || null,
+      watch: readJson(path.join(dir, "prototype", "data", "sync-watch.json"), null), schedule: syncSchedule(),
+    });
+    return true;
+  }
+  // ownership rules (sync-rules.json), the linked code repo (status.json > code_repo), the daily check's note
+  if (req.method === "POST" && m[2] === "figma-sync/rules") { const b = await readBody(req); send(res, 200, { rules: figmaSync.saveRules(dir, b.rules || {}) }); return true; }
+  if (req.method === "POST" && m[2] === "figma-sync/code-repo") {
+    const b = await readBody(req);
+    const url = String(b.url || "").trim();
+    if (url && !/^(https:\/\/[\w.-]+\/[\w./-]+|git@[\w.-]+:[\w./-]+)$/.test(url)) { send(res, 400, { error: "That does not look like a repo link (https://github.com/owner/name)." }); return true; }
+    const f = path.join(dir, "status.json"); const s = readJson(f, {});
+    if (url) s.code_repo = { url, branch: String(b.branch || "").trim() || null }; else delete s.code_repo;
+    fs.writeFileSync(f, JSON.stringify(s, null, 2) + "\n");
+    send(res, 200, { codeRepo: s.code_repo || null });
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "figma-sync/watch-seen") {
+    const f = path.join(dir, "prototype", "data", "sync-watch.json"); const w = readJson(f, null);
+    if (w) { w.seen = true; fs.writeFileSync(f, JSON.stringify(w, null, 1) + "\n"); }
+    send(res, 200, { ok: true });
+    return true;
+  }
+  // the daily check (tools/sync_watch.cjs, no AI): a Windows scheduled task the user turns on or off here
+  if (req.method === "POST" && m[2] === "sync-schedule") {
+    const b = await readBody(req);
+    const r = setSyncSchedule(!!b.on, root, path.dirname(dir), b.time);
+    send(res, r.ok ? 200 : 400, r.ok ? { schedule: syncSchedule() } : { error: r.error });
     return true;
   }
   if (req.method === "POST" && m[2] === "figma-sync/check") { send(res, 200, await figmaSync.check(dir, figmaToken())); return true; }

@@ -529,7 +529,7 @@ async function drawDesign(main, p) {
       }
     } },
       st.unpublished ? el("span", { class: "dot bad", "aria-hidden": "true" }) : null, st.publishing ? "Publishing…" : "Publish");
-    const pendingN = syncSt ? syncSt.pending.length + ((syncSt.lastCheck?.rows || []).filter((r) => ["figma-changed", "new-in-figma", "conflict", "removed-in-figma"].includes(r.status)).length) : 0;
+    const pendingN = syncSt ? syncSt.pending.length + ((syncSt.lastCheck?.rows || []).filter((r) => ["figma-changed", "new-in-figma", "conflict", "removed-in-figma"].includes(r.status)).length) + (syncSt.watch && !syncSt.watch.seen ? 1 : 0) + (syncSt.lastCheck?.code?.items?.length || 0) : 0;
     const syncBtn = el("button", { class: "ghost sm ws-syncbtn", type: "button", "aria-haspopup": "dialog", "aria-expanded": String(!syncPop.hidden), title: "What differs between the prototype and Figma", onclick: () => { syncPop.hidden = !syncPop.hidden; pubPop.hidden = true; if (!syncPop.hidden) loadSync(); drawSyncPop(); } },
       icon("i-refresh"), "Sync with Figma", pendingN ? el("span", { class: "ws-count rel" }, String(pendingN)) : null);
     pubBox.replaceChildren(syncBtn, pub);
@@ -671,6 +671,7 @@ async function drawDesign(main, p) {
   let syncChecking = false;
   const pushPicked = new Set(), pullPicked = new Set(), conflictPick = {};
   const pushSeen = new Set(); // every newly listed item starts ticked; the user's untick is kept
+  const codePicked = new Set();
   async function loadSync() {
     try { syncSt = await api(`/api/project/${enc}/figma-sync`); for (const i of syncSt.pending) if (!pushSeen.has(i.id)) { pushSeen.add(i.id); pushPicked.add(i.id); } } catch (e) { showError(e); }
     drawBar(); drawSyncPop();
@@ -679,7 +680,8 @@ async function drawDesign(main, p) {
     syncChecking = true; drawSyncPop();
     try {
       const r = await api(`/api/project/${enc}/figma-sync/check`, {});
-      if (r.error) toast(r.error); else syncSt = { ...syncSt, pending: r.pending, lastCheck: { at: r.checkedAt, rows: r.rows, baseline: r.baseline } };
+      if (r.error) toast(r.error); else syncSt = { ...syncSt, pending: r.pending, lastCheck: { at: r.checkedAt, rows: r.rows, baseline: r.baseline, code: r.code } };
+      for (const it of syncSt.lastCheck?.code?.items || []) codePicked.add(it.sha);
       for (const row of syncSt.lastCheck?.rows || []) if (["figma-changed", "new-in-figma"].includes(row.status)) pullPicked.add(row.slug);
     } catch (e) { showError(e); }
     syncChecking = false; drawBar(); drawSyncPop();
@@ -692,6 +694,7 @@ async function drawDesign(main, p) {
     const rows = syncSt.lastCheck?.rows || [];
     const pull = rows.filter((r) => ["figma-changed", "new-in-figma", "removed-in-figma"].includes(r.status));
     const conflicts = rows.filter((r) => r.status === "conflict");
+    for (const r of conflicts) if (r.proposal && conflictPick[r.slug] === undefined) conflictPick[r.slug] = r.proposal.side === "figma" ? "figma" : "prototype";
     const inSync = rows.filter((r) => r.status === "in-sync").length;
     const nameOf = (slug, fallback) => syncSt.screens?.find((x) => x.slug === slug)?.name || fallback || slug;
     const check = (set, id) => el("input", { type: "checkbox", checked: set.has(id) || null, onchange: (ev) => { ev.target.checked ? set.add(id) : set.delete(id); drawSyncPop(); } });
@@ -703,6 +706,7 @@ async function drawDesign(main, p) {
       el("header", {}, el("span", { class: "dot run" }), el("b", {}, "Sync with Figma"),
         el("button", { class: "iconbtn sq", type: "button", "aria-label": "Close", onclick: () => { syncPop.hidden = true; drawBar(); } }, icon("i-x"))),
       el("p", { class: "muted small" }, `Figma tool: ${figmaToolNow()}. Nothing is written to Figma until you press Sync.`),
+      syncSt.watch && !syncSt.watch.seen ? el("div", { class: "watchnote" }, icon("i-clock"), el("span", { class: "small" }, el("b", {}, "Daily check: "), syncSt.watch.summary), el("button", { class: "ghost sm", type: "button", onclick: async () => { await api(`/api/project/${enc}/figma-sync/watch-seen`, {}).catch(() => {}); syncSt.watch.seen = true; drawBar(); drawSyncPop(); } }, "Got it")) : null,
       // prototype -> Figma
       el("div", { class: "pub-url" }, el("span", { class: "kicker" }, `Prototype → Figma · ${syncSt.pending.length}`),
         syncSt.pending.length ? el("div", { class: "slist" },
@@ -717,11 +721,69 @@ async function drawDesign(main, p) {
         syncSt.lastCheck?.baseline ? el("p", { class: "small muted" }, "First check: this is now the starting point; later Figma edits show here.") : null,
         pull.length ? el("div", { class: "slist" }, pull.map((r) => el("label", { class: "srow2" }, check(pullPicked, r.slug), el("span", {}, el("b", {}, r.name || nameOf(r.slug)), el("span", { class: "small muted" }, ` · ${SYNC_LABEL[r.status]}`))))) : syncSt.lastCheck ? el("p", { class: "small muted" }, "No new Figma changes for the prototype.") : null,
         conflicts.length ? el("div", { class: "slist" }, el("p", { class: "small conflict" }, "Changed on both sides since the last sync: choose what wins."),
-          conflicts.map((r) => el("div", { class: "srow2" }, el("span", {}, el("b", {}, nameOf(r.slug))),
+          conflicts.map((r) => el("div", { class: "srow2" }, el("span", {}, el("b", {}, nameOf(r.slug)), r.proposal ? el("p", { class: "small muted" }, `Proposed: ${r.proposal.why}.`) : el("p", { class: "small muted" }, "No owner in sync-rules.json: your choice.")),
             el("select", { "aria-label": `Which wins for ${nameOf(r.slug)}`, onchange: (ev) => { conflictPick[r.slug] = ev.target.value || null; drawSyncPop(); } },
               el("option", { value: "" }, "Decide…"), el("option", { value: "figma", selected: conflictPick[r.slug] === "figma" || null }, "Figma wins"), el("option", { value: "prototype", selected: conflictPick[r.slug] === "prototype" || null }, "Prototype wins"), el("option", { value: "both", selected: conflictPick[r.slug] === "both" || null }, "Keep both"))))) : null,
         pull.length || conflicts.length ? el("div", { class: "row" }, el("span", { style: "flex:1" }), el("button", { class: "primary sm", type: "button", disabled: !pullN || null, onclick: pullFromFigma }, `Pull ${pullN} into the prototype`)) : null),
+      codeSection(),
+      settingsSection(),
     ].filter(Boolean));
+  }
+  // The code repo as a third side: new commits become "add to Figma?" items; Figma changes can become a PR there.
+  function codeSection() {
+    const repo = syncSt.codeRepo;
+    if (!repo) return null;
+    const url = repo.url || repo;
+    const code = syncSt.lastCheck?.code;
+    const figmaChanged = (syncSt.lastCheck?.rows || []).filter((r) => ["figma-changed", "new-in-figma"].includes(r.status));
+    const n = (code?.items || []).filter((i) => codePicked.has(i.sha)).length;
+    return el("div", { class: "pub-url" }, el("span", { class: "kicker" }, "Code repo"),
+      el("p", { class: "small muted" }, el("a", { href: String(url).replace(/\.git$/, ""), target: "_blank", rel: "noopener" }, String(url).replace(/^https:\/\//, "").replace(/\.git$/, "")), repo.branch ? ` · ${repo.branch}` : ""),
+      code?.error ? el("p", { class: "small conflict" }, code.error) : null,
+      code && !code.error && code.items.length ? el("div", { class: "slist" }, el("p", { class: "small muted" }, "New in the code since the last sync: add to Figma?"),
+        code.items.map((it) => el("label", { class: "srow2" }, el("input", { type: "checkbox", checked: codePicked.has(it.sha) || null, onchange: (ev) => { ev.target.checked ? codePicked.add(it.sha) : codePicked.delete(it.sha); drawSyncPop(); } }), el("span", {}, el("b", { dir: "auto" }, it.subject), el("span", { class: "small muted mono" }, ` · ${it.sha}`))))) : code && !code.error ? el("p", { class: "small muted" }, "No new code changes since the last sync.") : el("p", { class: "small muted" }, "Check Figma for changes to read the code repo too."),
+      el("div", { class: "row" }, el("span", { style: "flex:1" }),
+        figmaChanged.length ? el("button", { class: "ghost sm", type: "button", onclick: () => prepareCodePr(figmaChanged) }, `Prepare a PR for ${figmaChanged.length} Figma change${figmaChanged.length === 1 ? "" : "s"}`) : null,
+        code?.items?.length ? el("button", { class: "primary sm", type: "button", disabled: !n || null, onclick: () => codeToFigma(code.items.filter((i) => codePicked.has(i.sha)), code.repo) }, `Add ${n} to Figma`) : null));
+  }
+  async function codeToFigma(items, repoUrl) {
+    const short = `Add ${items.length} code change${items.length === 1 ? "" : "s"} to Figma`;
+    const hidden = `The user pressed "Add to Figma" for these commits of the code repo ${repoUrl} (that press approves adding them to Figma). For each one, read the commit, say in one line what it changes in the design (component, state, prop or screen), then add it in Figma with ${figmaToolNow()}: design-system changes first (then remind to publish the library), then screens; DS components and variables only; audit after each. If a commit has no design effect, say so and skip it. Commits:\n${items.map((i) => `- ${i.sha} ${i.subject}`).join("\n")}\nAfterwards add a CHANGELOG entry and record the code side as synced (node tools/figma_sync.cjs "My Projects/${p.name}" --mark <slugs> for the screens you touched).`;
+    try { const st2 = await sendToDesign(short, hidden); toast(st2 === "queued" ? "Queued after the current task." : "Sent to Claude: the code changes go to Figma in the chat."); syncPop.hidden = true; drawBar(); } catch (e) { showError(e); }
+  }
+  async function prepareCodePr(rows) {
+    const repo = syncSt.codeRepo; const url = repo.url || repo;
+    const names = rows.map((r) => r.name || syncSt.screens?.find((x) => x.slug === r.slug)?.name || r.slug);
+    const short = `Prepare a PR in the code repo for ${rows.length} Figma change${rows.length === 1 ? "" : "s"}`;
+    const hidden = `The user pressed "Prepare a PR" in the Design page. In the code repo ${url}${repo.branch ? ` (branch ${repo.branch})` : ""}: clone it outside the workflow folder, make one short branch (atomica/figma-sync-<date>), implement only these Figma changes with the code's existing components and tokens: ${names.join(", ")}. Push the branch and open ONE draft pull request with a clear summary and before/after notes, assigned to the user for review. Never merge it, never push to the default branch. Report the PR link.`;
+    try { const st2 = await sendToDesign(short, hidden); toast(st2 === "queued" ? "Queued after the current task." : "Sent to Claude: it prepares a draft PR for your review."); syncPop.hidden = true; drawBar(); } catch (e) { showError(e); }
+  }
+  // Settings: the code repo link, the ownership rules, the daily check.
+  function settingsSection() {
+    const repo = syncSt.codeRepo || {};
+    const urlIn = el("input", { class: "mono", placeholder: "https://github.com/owner/repo", value: repo.url || (typeof repo === "string" ? repo : ""), "aria-label": "Code repo link" });
+    const brIn = el("input", { class: "mono", placeholder: "branch (optional)", value: repo.branch || "", "aria-label": "Branch", style: "max-width:120px" });
+    const rulesIn = el("textarea", { class: "mono", rows: "7", "aria-label": "Ownership rules (sync-rules.json)" });
+    rulesIn.value = JSON.stringify({ screens: syncSt.rules?.screens || {}, categories: syncSt.rules?.categories || {} }, null, 2);
+    const sch = syncSt.schedule || {};
+    const time = el("input", { type: "time", value: "09:00", "aria-label": "Daily check time" });
+    return el("details", { class: "pub-url sync-settings" }, el("summary", { class: "kicker" }, "Settings"),
+      el("p", { class: "small" }, el("b", {}, "Code repo"), " (a third side: its new commits show above; Figma changes can become a PR there)"),
+      el("div", { class: "row" }, urlIn, brIn, el("button", { class: "ghost sm", type: "button", onclick: async () => {
+        try { const r = await api(`/api/project/${enc}/figma-sync/code-repo`, { url: urlIn.value.trim(), branch: brIn.value.trim() }); syncSt.codeRepo = r.codeRepo; toast(r.codeRepo ? "Code repo linked." : "Code repo removed."); drawSyncPop(); } catch (e) { showError(e); }
+      } }, "Save")),
+      el("p", { class: "small" }, el("b", {}, "Who owns what"), " (sync-rules.json: \"figma\", \"code\" or null to ask; an owned conflict is proposed for the owner, still applied only on your press)"),
+      rulesIn,
+      el("div", { class: "row" }, el("span", { style: "flex:1" }), el("button", { class: "ghost sm", type: "button", onclick: async () => {
+        let parsed; try { parsed = JSON.parse(rulesIn.value); } catch { toast("The rules are not valid JSON."); return; }
+        try { const r = await api(`/api/project/${enc}/figma-sync/rules`, { rules: parsed }); syncSt.rules = r.rules; toast("Ownership rules saved."); drawSyncPop(); } catch (e) { showError(e); }
+      } }, "Save rules")),
+      el("p", { class: "small" }, el("b", {}, "Daily check"), " (a small script, no AI: it compares the Figma file and the code repo with the last sync and only leaves a note here when something moved)"),
+      sch.supported === false ? el("p", { class: "small muted" }, "Windows only from here; on a Mac run node tools/sync_watch.cjs --all from cron.") :
+        el("div", { class: "row" }, el("span", { class: "small" }, el("span", { class: `dot ${sch.on ? "good" : "wait"}` }), sch.on ? ` On${sch.next ? ` · next ${sch.next}` : ""}` : " Off"), el("span", { style: "flex:1" }), sch.on ? null : time,
+          el("button", { class: sch.on ? "ghost sm" : "primary sm", type: "button", onclick: async () => {
+            try { const r = await api(`/api/project/${enc}/sync-schedule`, { on: !sch.on, time: time.value }); syncSt.schedule = r.schedule; toast(r.schedule.on ? "Daily check on (Windows Task Scheduler: Atomica sync check)." : "Daily check off."); drawSyncPop(); } catch (e) { showError(e); }
+          } }, sch.on ? "Turn off" : "Turn on (creates a Windows task)")));
   }
   async function syncToFigma() {
     const items = syncSt.pending.filter((i) => pushPicked.has(i.id));
