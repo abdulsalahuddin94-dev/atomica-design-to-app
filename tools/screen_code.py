@@ -550,6 +550,8 @@ class Renderer:
                 w.add(depth, {"compose": f"Spacer(modifier = Modifier.height({t}))", "swiftui": f"Spacer().frame(height: {t})",
                               "flutter": f"SizedBox(height: {t}),", "react-native": f"<View style={{{{ height: {t} }}}} />",
                               "web": f"<div style={{{{ height: {q(t, 'web')} }}}} />"}[self.p])
+            elif item["kind"] == "stack":  # a pinned frame (e.g. a Mini Player Dock with its own padding)
+                self.emit(w, item, depth, "col")
             else:
                 s0 = len(w.lines)
                 self.child_inst(w, item, depth, "col", {"_stretch_default": False}) if self.p in ("react-native", "web") \

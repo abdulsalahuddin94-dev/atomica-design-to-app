@@ -30,7 +30,10 @@ def load(path, default=None):
 
 
 def texts_of(node, out, screen):
-    """Every text a screen shows: TEXT properties and nested text layers of its instances."""
+    """Every text a screen shows: TEXT properties and nested text layers of its instances, and the screen's own text
+    layers (e.g. a sheet title or a label added code-first)."""
+    if node.get("t") == "T" and (node.get("chars") or "").strip():
+        out.setdefault(node["chars"], set()).add(screen)
     for v in (node.get("p") or {}).values():
         if isinstance(v, str) and v.strip():
             out.setdefault(v, set()).add(screen)
