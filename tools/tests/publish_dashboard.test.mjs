@@ -214,3 +214,56 @@ test("code repo: new commits become items; merges and housekeeping are left out"
   const items = codeItems("a1\tAdd status filter to Action Tracker\nb2\tchore: bump deps\nc3\tMerge pull request #4\nd4\tFix copy on the empty state");
   assert.deepEqual(items.map((i) => i.sha), ["a1", "d4"]);
 });
+
+// ---------- Storybook: opt-in by sections ----------
+const sb = require("../storybook_sections.cjs");
+const { screenGroup } = await import("../../dashboard/project-api.mjs");
+
+test("storybook: off by default; unknown sections and empty names are dropped", () => {
+  assert.equal(sb.normalize({}).enabled, false);
+  assert.equal(sb.normalize({ enabled: "yes" }).enabled, false);
+  const c = sb.normalize({ enabled: true, sections: ["colors-semantic", "nope", "colors-semantic"], components: ["Button", " ", "Button"] });
+  assert.deepEqual(c.sections, ["colors-semantic"]);
+  assert.deepEqual(c.components, ["Button"]);
+  assert.equal(sb.plan({ sections: ["typography"] }).build.length, 0, "nothing is built while it is off");
+});
+
+test("storybook: the plan builds only what is checked, and skips the rest", () => {
+  const avail = [{ name: "Button" }, { name: "Badge" }];
+  const p = sb.plan({ enabled: true, sections: sb.PRESETS.tokens.sections, components: [] }, avail);
+  assert.deepEqual(p.build.map((b) => b.id), sb.PRESETS.tokens.sections);
+  assert.deepEqual(p.components, []);
+  assert.ok(p.skip.includes("variants") && p.skip.includes("pages"));
+  const d = sb.plan({ enabled: true, sections: sb.PRESETS.developer.sections, components: "all" }, avail);
+  assert.deepEqual(d.components, ["Button", "Badge"]);
+  assert.ok(d.componentDetail.includes("show-code") && !d.componentDetail.includes("figma-link"));
+  assert.ok(!sb.PRESETS.developer.sections.includes("pages"), "the recommended preset never publishes");
+  assert.deepEqual(sb.plan({ enabled: true, sections: [], components: ["Button", "Gone"] }, avail).components, ["Button"]);
+});
+
+test("storybook: code first lists component files, not stories, tests or index files", () => {
+  const files = ["src/components/ui/button.tsx", "src/components/ui/button.stories.tsx", "src/components/ui/index.ts", "src/components/ui/index.tsx",
+    "src/components/layout/top-bar.tsx", "src/components/Card.tsx", "src/pages/Home.tsx", "src/components/ui/input.test.tsx"];
+  const c = sb.componentsFromFiles(files);
+  assert.deepEqual(c.map((x) => x.name), ["Button", "Card", "TopBar"]);
+  assert.equal(c.find((x) => x.name === "TopBar").group, "layout");
+  assert.equal(c.find((x) => x.name === "Card").group, null);
+});
+
+test("storybook: saving keeps the project's other Storybook facts and follows the switch", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "atomica-test-sb-"));
+  fs.writeFileSync(path.join(dir, "status.json"), JSON.stringify({ storybook_plan: "later", storybook: { synced: "2026-10-01" } }));
+  sb.saveConfig(dir, { enabled: true, sections: ["typography"], components: "all", preset: "nope" });
+  const s = JSON.parse(fs.readFileSync(path.join(dir, "status.json"), "utf8"));
+  assert.equal(s.storybook.synced, "2026-10-01");
+  assert.equal(s.storybook.enabled, true);
+  assert.equal(s.storybook.preset, null);
+  assert.equal(s.storybook_plan, "yes");
+  assert.deepEqual(sb.readConfig(dir).sections, ["typography"]);
+});
+
+test("screen picker: screens group by Figma section, else by the start of their name", () => {
+  assert.equal(screenGroup("Login", "Flows / Auth"), "Auth");
+  assert.equal(screenGroup("Checkout - Payment", null), "Checkout");
+  assert.equal(screenGroup("Home", null), "Other");
+});

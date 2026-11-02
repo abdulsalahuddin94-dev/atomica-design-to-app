@@ -4,10 +4,40 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 const { userEnv } = createRequire(import.meta.url)("../tools/publish_checks.cjs");
 const figmaSync = createRequire(import.meta.url)("../tools/figma_sync.cjs");
+const sbSections = createRequire(import.meta.url)("../tools/storybook_sections.cjs");
+
+// Storybook (opt-in, by sections): the components a project offers for the checklist. Figma first: its registry;
+// Code first without a registry: the component files of the linked code repo (read from a local cache clone).
+function storybookComponents(dir) {
+  const reg = readJson(path.join(dir, "data", "component-registry.json"), null);
+  const fromReg = sbSections.componentsFromRegistry(reg);
+  if (fromReg.length) return { source: "registry", components: fromReg };
+  const status = readJson(path.join(dir, "status.json"), {});
+  const r = status.code_repo;
+  if (!r) return { source: null, components: [] };
+  const url = /\.git$/.test(r.url || r) ? (r.url || r) : String(r.url || r).replace(/\/+$/, "") + ".git";
+  const lg = figmaSync.codeLog({ url, branch: r.branch || null }, null); // clones or fetches the cache
+  if (lg.error) return { source: "code", error: lg.error, components: [] };
+  const cache = path.join(os.homedir(), ".atomica", "repos", crypto.createHash("sha1").update(url).digest("hex").slice(0, 16));
+  const out = spawnSync("git", ["-C", cache, "ls-tree", "-r", "--name-only", lg.head], { encoding: "utf8", windowsHide: true, maxBuffer: 32 << 20 });
+  return { source: "code", components: sbSections.componentsFromFiles((out.stdout || "").split(/\r?\n/)) };
+}
+// What "Check Storybook" reports: the switch, the choices, whether a Storybook exists, runs and is published.
+async function storybookState(dir) {
+  const status = readJson(path.join(dir, "status.json"), {});
+  const sbDir = path.join(dir, "storybook");
+  const pkg = readText(path.join(sbDir, "package.json"));
+  const port = +((pkg.match(/storybook dev[^"]*-p\s*(\d+)/) || [])[1] || 0) || null;
+  let running = false;
+  if (port) { try { await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(500) }); running = true; } catch {} }
+  const stories = (() => { let n = 0; const walk = (d) => { let e = []; try { e = fs.readdirSync(d, { withFileTypes: true }); } catch { return; } for (const x of e) { if (x.name === "node_modules") continue; const p = path.join(d, x.name); if (x.isDirectory()) walk(p); else if (/\.stories\.(t|j)sx?$|\.mdx$/.test(x.name)) n++; } }; walk(path.join(sbDir, "src")); return n; })();
+  return { exists: !!pkg, port, running, stories, url: status.storybook_url || null, plan: status.storybook_plan || null, mode: status.prototype?.design_mode || null };
+}
 const figmaToken = () => { try { return createRequire(import.meta.url)("../tools/figma_versions.cjs").token(); } catch { return null; } };
 
 const readJson = (file, fallback = null) => {
@@ -274,10 +304,20 @@ function designScreens(dir) {
   const status = readJson(path.join(dir, "status.json"), {});
   const build = readJson(path.join(dir, "prototype", "data", "build-report.json"), {});
   const ahead = new Set(build.code_ahead || []);
+  // the module of a screen, for the screen picker of a big project: its Figma section, else the start of its name
+  const shot = readJson(path.join(dir, "prototype", "data", "screens.json"), {}) || {};
+  const sectionOf = {};
+  for (const s of shot.screens || []) if (s.section) sectionOf[String(s.n).replace(/\s*[/\-–—|(]\s*(Dark|Light)\)?\s*$/i, "").replace(/^.*\/\s*/, "").trim()] = s.section;
   return [...routes.matchAll(/\{\s*slug:\s*"([^"]+)",\s*name:\s*"([^"]+)",\s*w:\s*(\d+),\s*h:\s*(\d+)/g)].map((m) => ({
     slug: m[1], name: m[2], w: +m[3], h: +m[4],
     source: status.prototype?.screens?.[m[2]]?.source || (ahead.has(m[2]) ? "code" : "figma"),
+    group: screenGroup(m[2], sectionOf[m[2]]),
   }));
+}
+export function screenGroup(name, section) {
+  if (section && typeof section === "string") return section.replace(/^.*\/\s*/, "").trim() || section;
+  const m = String(name).match(/^(.+?)\s+[-–—/]\s+/);
+  return m ? m[1].trim() : "Other";
 }
 
 async function designState(dir) {
@@ -593,6 +633,18 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
       rules: figmaSync.readRules(dir), codeRepo: status.code_repo || null,
       watch: readJson(path.join(dir, "prototype", "data", "sync-watch.json"), null), schedule: syncSchedule(),
     });
+    return true;
+  }
+  // Storybook, opt-in by sections (tools/storybook_sections.cjs)
+  if (req.method === "GET" && m[2] === "storybook") {
+    const comps = url.searchParams.get("components") === "1" ? storybookComponents(dir) : null;
+    send(res, 200, { config: sbSections.readConfig(dir), groups: sbSections.GROUPS, presets: sbSections.PRESETS, state: await storybookState(dir), ...(comps ? { components: comps } : {}) });
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "storybook") {
+    const b = await readBody(req);
+    const config = sbSections.saveConfig(dir, b.config || {});
+    send(res, 200, { config, state: await storybookState(dir) });
     return true;
   }
   // ownership rules (sync-rules.json), the linked code repo (status.json > code_repo), the daily check's note

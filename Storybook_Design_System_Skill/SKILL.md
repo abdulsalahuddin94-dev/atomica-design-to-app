@@ -11,6 +11,17 @@ Questions: every `Ask (choice)` / `Ask (multi)` in this skill is an AskUserQuest
 
 ---
 
+## 0. Opt-in and sections (Abdul, 2026-11-02)
+
+Storybook is optional and off by default for every project. It runs only when `status.json > storybook.enabled` is `true` (intake 0.7, the dashboard's project Storybook page, or the user asks), for Code first and Figma first projects alike.
+1. **Read the plan first:** `node tools/storybook_sections.cjs "My Projects/<Project>"` prints `build` (the checked sections), `components` and `componentDetail` (what each component page shows) and `skip`. Not enabled -> build nothing and say how to turn it on.
+2. **Build only the checked sections.** A skipped section has no story, no docs page, no file to download and no sidebar entry (e.g. Tokens only = Colors, Typography, Spacing, CSS variables, Light/Dark). Component pages show only the checked details (Variants and states, Playground, Show code, Usage, Accessibility, Figma link); `components` limits which components get a page.
+3. **Code first:** tokens come from the code (Tailwind config, CSS variables, theme files) and the stories import the real components of the linked repo or the prototype with their props; Show code prints the real usage, never a copy of the component. **Figma first:** tokens from `data/tokens.json`, components from the registry and the DS file (sections 2-4).
+4. **Publishing stays opt-in:** "Public link" (GitHub Pages), "Storybook MCP" and "Auto-update" are built only when checked, and a public link still needs the user's yes at that moment.
+5. Changing the checklist later rebuilds only what changed: add the new sections, remove the unchecked ones (files and navigation). The quality bar below applies to every section that is built.
+
+---
+
 ## 1. Principles (non-negotiable)
 
 1. **Documentation, not production code.** Components are faithful visual replicas for browsing and trying. No business logic, no data fetching, no app routing.

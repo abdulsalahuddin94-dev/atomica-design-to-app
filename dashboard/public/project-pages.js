@@ -9,6 +9,7 @@ const PROJECT_PAGES = [
   ["design", "Design", "i-phone"],
   ["review", "Review", "i-message"],
   ["sync", "Sync", "i-refresh"],
+  ["storybook", "Storybook", "i-book"],
   ["connect", "Connect services", "i-plug"],
 ];
 
@@ -69,6 +70,7 @@ async function renderProjectPage(name, page) {
   if (page === "design") return drawDesign(main, p);
   if (page === "connect") return drawConnect(main, p);
   if (page === "plan") return drawPlan(main, p);
+  if (page === "storybook") return drawStorybook(main, p);
   main.append(el("p", { class: "p-empty" }, "Unknown page."));
 }
 
@@ -424,6 +426,7 @@ async function drawDesign(main, p) {
   const list = el("aside", { class: "ws-clist", "aria-label": "Comments on this screen", hidden: true });
   const pop = el("div", { class: "ws-pop", role: "dialog", "aria-label": "Comment", hidden: true });
   const menu = el("div", { class: "ws-menu", role: "menu", hidden: true });
+  const screensMenu = el("div", { class: "ws-menu ws-screens", hidden: true });
   const pubPop = el("div", { class: "ws-pubpop", role: "dialog", "aria-label": "Publish", hidden: true });
   const syncPop = el("div", { class: "ws-pubpop ws-syncpop", role: "dialog", "aria-label": "Sync with Figma", hidden: true });
   let syncSt = null; // tools/figma_sync.cjs state: pending (prototype -> Figma) and the last Figma check
@@ -443,7 +446,7 @@ async function drawDesign(main, p) {
   }
   let publishError = null; // the last publish failure, shown in the panel until the next try
   let liveState = null; // null | "waiting" | "live": after a publish, until GitHub Pages serves the new build
-  const stage = el("section", { class: "ws-stage", "aria-label": "Prototype preview" }, canvas, pubBox, pubPop, syncPop, list, pop, menu, pill, openPill);
+  const stage = el("section", { class: "ws-stage", "aria-label": "Prototype preview" }, canvas, pubBox, pubPop, syncPop, list, pop, menu, screensMenu, pill, openPill);
   main.append(chatCol, stage);
 
   let comments = []; // from the dashboard (pulled from Supabase): author, body, images, triage
@@ -490,10 +493,37 @@ async function drawDesign(main, p) {
   const tool = (k, label, ic, count) => el("button", { type: "button", class: `ws-tool${view.tool === k ? " on" : ""}`, "aria-pressed": String(view.tool === k), title: label, "aria-label": label,
     onclick: () => setTool(view.tool === k ? null : k) }, icon(ic), count ? el("span", { class: "ws-count" }, String(count)) : null);
   const openOnScreen = () => comments.filter((c) => c.status !== "resolved" && c.screen === view.screen).length;
+  // The screen picker: a list with search, grouped by module (a project can have 100+ screens).
+  const goScreen = (slug) => { view.screen = slug; view.device = autoDevice(); view.comment = null; pop.hidden = true; screensMenu.hidden = true; saveView(); loadFrame(); drawBar(); };
+  function openScreens(anchor) {
+    if (!screensMenu.hidden) { screensMenu.hidden = true; return; }
+    const b = anchor.getBoundingClientRect(), s2 = stage.getBoundingClientRect();
+    screensMenu.style.left = `${Math.max(8, Math.min(b.left - s2.left, s2.width - 330))}px`;
+    screensMenu.style.bottom = `${s2.bottom - b.top + 10}px`;
+    const search = el("input", { type: "search", placeholder: `Search ${st.screens.length} screens…`, "aria-label": "Search screens" });
+    const list = el("div", { class: "ws-slist", role: "listbox", "aria-label": "Screens" });
+    const draw = () => {
+      const q = search.value.trim().toLowerCase();
+      const groups = {};
+      for (const sc of st.screens) if (!q || sc.name.toLowerCase().includes(q) || (sc.group || "").toLowerCase().includes(q)) (groups[sc.group || "Other"] ||= []).push(sc);
+      const many = Object.keys(groups).length > 1;
+      list.replaceChildren(...(Object.keys(groups).length ? Object.entries(groups).flatMap(([g, items]) => [
+        many ? el("div", { class: "ws-sgroup" }, g, el("span", {}, String(items.length))) : null,
+        ...items.map((sc) => el("button", { type: "button", role: "option", class: sc.slug === view.screen ? "on" : null, "aria-selected": String(sc.slug === view.screen), onclick: () => goScreen(sc.slug) },
+          sc.name, sc.source === "code" ? el("span", { class: "ws-scode" }, "code") : null)),
+      ].filter(Boolean)) : [el("p", { class: "ws-snone" }, "No screen matches.")]));
+    };
+    search.addEventListener("input", draw);
+    search.addEventListener("keydown", (e) => { if (e.key === "Enter") { const first = list.querySelector("button"); if (first) first.click(); } if (e.key === "Escape") screensMenu.hidden = true; });
+    draw();
+    screensMenu.replaceChildren(search, list);
+    screensMenu.hidden = false;
+    search.focus();
+  }
   function drawBar() {
-    const screenPick = el("select", { "aria-label": "Screen", onchange: () => { view.screen = screenPick.value; view.device = autoDevice(); view.comment = null; pop.hidden = true; saveView(); loadFrame(); drawBar(); } },
-      st.screens.map((s) => el("option", { value: s.slug }, s.name)));
-    screenPick.value = view.screen;
+    const curScreen = st.screens.find((s) => s.slug === view.screen);
+    const screenPick = el("button", { class: "ws-screenbtn", type: "button", "aria-haspopup": "listbox", "aria-label": "Screen", title: curScreen?.group ? `${curScreen.group} · ${curScreen.name}` : curScreen?.name, onclick: (ev) => openScreens(ev.currentTarget) },
+      el("span", {}, curScreen?.name || "Screen"), icon("i-down"));
     // "…": a menu above the pill (outside it, so the pill's scrolling never clips it)
     menu.replaceChildren(
       el("button", { type: "button", onclick: () => { menu.hidden = true; pushToFigma(); } }, icon("i-upload"), "Add this screen to Figma sync"),
@@ -937,6 +967,24 @@ async function drawConnect(main, p) {
     el("header", {}, light(state), el("h2", {}, title), el("span", { class: `tag ${state === "ok" ? "res" : state === "warn" ? "k-decision" : "open"}` }, state === "ok" ? "Connected" : state === "warn" ? "Needs a look" : "Not connected")),
     el("p", { class: "small" }, summary), ...rest.filter(Boolean));
   const copyBtn = (label, get) => el("button", { class: "ghost sm", type: "button", onclick: async () => { toast((await copyText(await get())) ? "Copied." : "Could not copy. Select the text instead."); } }, icon("i-copy"), label);
+  // "Check Storybook": is it on for this project, what is selected, is it built, running and published
+  const storybookCheck = () => {
+    const box = el("div", { class: "small" });
+    const btn = el("button", { class: "ghost sm", type: "button", onclick: async () => {
+      btn.disabled = true;
+      try {
+        const r = await api(`/api/project/${enc}/storybook`);
+        const c = r.config, s = r.state;
+        box.replaceChildren(el("dl", { class: "p-kv" },
+          el("dt", {}, "Storybook"), el("dd", {}, c.enabled ? "on" : "off (optional)"),
+          el("dt", {}, "Selected"), el("dd", {}, c.enabled ? `${c.sections.length} sections · ${c.components === "all" ? "all components" : `${c.components.length} components`}` : "–"),
+          el("dt", {}, "Built"), el("dd", {}, s.exists ? `${s.stories} stories${s.running ? " · running" : ""}` : "not yet"),
+          el("dt", {}, "Public link"), el("dd", {}, s.url || "none")));
+      } catch (e) { showError(e); }
+      btn.disabled = false;
+    } }, icon("i-refresh"), "Check Storybook");
+    return el("div", { class: "p-actions" }, btn, el("a", { class: "ghost sm", href: `#/project/${enc}/storybook` }, "Storybook settings"), box);
+  };
 
   function supabaseCard() {
     const s = c.supabase;
@@ -1010,8 +1058,8 @@ async function drawConnect(main, p) {
         sb.running ? `Storybook runs on port ${sb.port}; its MCP is at ${sb.mcp}.` : `Storybook is not running (port ${sb.port}). Start it to give Claude the components' docs and props.`,
         el("p", { class: "muted small" }, "Register it once on this computer (local scope, never committed):"),
         el("pre", { class: "mono svc-cmd" }, sb.add),
-        el("div", { class: "p-actions" }, copyBtn("Copy command", () => sb.add)))
-        : card("Storybook MCP", "warn", "This project has no Storybook yet."),
+        el("div", { class: "p-actions" }, copyBtn("Copy command", () => sb.add)), storybookCheck())
+        : card("Storybook MCP", "warn", "This project has no Storybook yet.", storybookCheck()),
       card("Playwright (checks)", pw.core && pw.chrome ? "ok" : "warn",
         pw.core && pw.chrome ? "Ready: fidelity and live checks run in Chrome." : [!pw.core && "the prototype's playwright-core is not installed (npm install in the prototype folder)", !pw.chrome && "Google Chrome is not installed"].filter(Boolean).join("; ") + ".")));
     fillFigma(); // the tools may have arrived before this card was on the page
@@ -1211,4 +1259,92 @@ function publishChecksList(chk, { onlyProblems = false } = {}) {
   return el("ul", { class: "pchk" }, rows.map((c) => el("li", { class: c.ok ? "ok" : c.optional ? "warn" : "bad" },
     el("span", { class: `dot ${c.ok ? "good" : c.optional ? "wait" : "bad"}` }),
     el("div", {}, el("b", {}, c.label), c.ok ? null : el("p", { class: "small" }, c.reason), c.ok ? null : el("p", { class: "small muted" }, "Fix: ", c.fix)))));
+}
+
+// ---------- Storybook: opt-in, by sections (tools/storybook_sections.cjs) ----------
+// One switch per project (off by default, Code first or Figma first) and a checklist of what goes up; only the checked
+// sections are built. Building and publishing go through the chat (the Storybook skill reads the same choices).
+const SB_PROMPT = (p, plan, mode) => `Build or update the Storybook of "${p}" (My Projects/${p}) with ONLY the sections checked in status.json > storybook (tools/storybook_sections.cjs "My Projects/${p}" prints the plan); leave every other section out of the files and the navigation. Source: ${mode === "code-first" ? "the code (Code first): read the linked repo / prototype for tokens (Tailwind config, CSS variables) and components with their props; the stories import the real components, never copies" : "the Figma design system (data/tokens.json, the registry, the DS file)"}. Follow Storybook_Design_System_Skill (section 0, opt-in and sections). Sections: ${plan.build.map((b) => b.label).join(", ")}. Components: ${plan.components.length ? plan.components.join(", ") : "none"}${plan.componentDetail.length ? ` (with: ${plan.componentDetail.join(", ")})` : ""}. Do not publish it anywhere unless "Public link" is checked AND I confirm.`;
+
+async function drawStorybook(main, p) {
+  const enc = encodeURIComponent(p.name);
+  let d = await api(`/api/project/${enc}/storybook?components=1`).catch((e) => { showError(e); return null; });
+  if (!d) { main.append(el("p", { class: "p-empty" }, "Could not read the Storybook settings.")); return; }
+  let cfg = { ...d.config };
+  let dirty = false;
+  const saveBtn = el("button", { class: "primary sm", type: "button" }, "Save");
+  const buildBtn = el("button", { class: "ghost sm", type: "button" }, icon("i-message"), "Build / update in chat");
+  main.append(head(p, "Storybook", "Optional: a live design system for developers, with only the parts you choose.", [buildBtn, saveBtn]));
+  const body = el("div", { class: "sb-page" });
+  main.append(body);
+  const comps = d.components?.components || [];
+  let compQuery = "";
+
+  const set = (fn) => { fn(); dirty = true; draw(); };
+  const has = (id) => cfg.sections.includes(id);
+  const toggleSection = (id) => set(() => { cfg.sections = has(id) ? cfg.sections.filter((x) => x !== id) : [...cfg.sections, id]; cfg.preset = null; });
+  const applyPreset = (k) => set(() => { const pr = d.presets[k]; cfg.sections = [...pr.sections]; cfg.components = pr.components === "all" ? "all" : [...pr.components]; cfg.preset = k; });
+
+  function draw() {
+    const st = d.state;
+    const status = el("section", { class: "p-panel sb-status" },
+      el("label", { class: "sb-switch" }, el("input", { type: "checkbox", role: "switch", checked: cfg.enabled || null, onchange: (ev) => set(() => { cfg.enabled = ev.target.checked; if (cfg.enabled && !cfg.sections.length) { const pr = d.presets.developer; cfg.sections = [...pr.sections]; cfg.components = "all"; cfg.preset = "developer"; } }) }),
+        el("span", { class: "track", "aria-hidden": "true" }), el("b", {}, "Enable Storybook design system")),
+      el("p", { class: "small muted" }, `Off by default. Works with Code first and Figma first${st.mode ? ` (this project: ${st.mode === "code-first" ? "Code first" : "Figma first"})` : ""}. Only the checked parts are built; you can change it any time.`),
+      el("dl", { class: "p-kv" },
+        el("dt", {}, "Storybook"), el("dd", {}, st.exists ? `${st.stories} stories${st.port ? ` · port ${st.port}` : ""}${st.running ? " · running" : ""}` : "not built yet"),
+        el("dt", {}, "Public link"), el("dd", {}, st.url ? el("a", { href: st.url, target: "_blank", rel: "noopener" }, st.url.replace(/^https?:\/\//, "")) : "none"),
+        el("dt", {}, "Selected"), el("dd", {}, cfg.enabled ? `${cfg.sections.length} sections · ${cfg.components === "all" ? "all components" : `${cfg.components.length} components`}` : "nothing (off)")));
+    if (!cfg.enabled) { body.replaceChildren(status); syncButtons(); return; }
+    const presets = el("div", { class: "sb-presets" }, Object.entries(d.presets).map(([k, pr]) => el("button", { type: "button", class: `sb-preset${cfg.preset === k ? " on" : ""}`, onclick: () => applyPreset(k) },
+      el("b", {}, pr.label), pr.recommended ? el("span", { class: "rec" }, "Recommended") : null, el("span", { class: "small muted" }, pr.note))));
+    const groups = d.groups.map((g, gi) => el("section", { class: "p-panel sb-group" },
+      el("h2", { class: "section-title" }, `${gi + 1}. ${g.label}`),
+      g.id === "components" ? componentPicker() : null,
+      el("div", { class: "sb-items" }, g.items.map(([id, label, note]) => el("label", { class: "sb-item" },
+        el("input", { type: "checkbox", checked: has(id) || null, onchange: () => toggleSection(id) }),
+        el("span", {}, label, note ? el("span", { class: "small muted" }, ` · ${note}`) : null))))));
+    body.replaceChildren(status, el("h2", { class: "section-title" }, "Quick start"), presets, ...groups);
+    syncButtons();
+  }
+  function componentPicker() {
+    const all = cfg.components === "all";
+    const picked = new Set(all ? comps.map((c) => c.name) : cfg.components);
+    const byGroup = {};
+    for (const c of comps) (byGroup[c.group || "Other"] ||= []).push(c);
+    const q = compQuery.trim().toLowerCase();
+    const search = el("input", { type: "search", class: "sb-search", placeholder: `Search ${comps.length} components…`, value: compQuery, "aria-label": "Search components",
+      oninput: (ev) => { compQuery = ev.target.value; const pos = ev.target.selectionStart; draw(); const n = document.querySelector(".sb-search"); n?.focus(); n?.setSelectionRange(pos, pos); } });
+    const setPicked = (names, on) => set(() => { const s = new Set(cfg.components === "all" ? comps.map((c) => c.name) : cfg.components); for (const n of names) on ? s.add(n) : s.delete(n); cfg.components = s.size === comps.length && comps.length ? "all" : [...s]; cfg.preset = null; });
+    return el("div", { class: "sb-comps" },
+      d.components?.error ? el("p", { class: "small conflict" }, d.components.error) : null,
+      !comps.length ? el("p", { class: "small muted" }, d.components?.source === null ? "No components found yet: Figma first projects list their registry; Code first projects list the components of the linked code repo (Sync with Figma > Settings)." : "No components found.") : null,
+      comps.length ? el("div", { class: "row" },
+        el("label", { class: "sb-item" }, el("input", { type: "checkbox", checked: all || null, onchange: (ev) => set(() => { cfg.components = ev.target.checked ? "all" : []; cfg.preset = null; }) }), el("b", {}, `All components (${comps.length})`)),
+        el("span", { style: "flex:1" }), search) : null,
+      comps.length ? el("div", { class: "sb-compgroups" }, Object.entries(byGroup).map(([g, list]) => {
+        const shown = list.filter((c) => !q || c.name.toLowerCase().includes(q));
+        if (!shown.length) return null;
+        const allIn = list.every((c) => picked.has(c.name));
+        return el("div", { class: "sb-compgroup" },
+          el("label", { class: "sb-item gh" }, el("input", { type: "checkbox", checked: allIn || null, onchange: (ev) => setPicked(list.map((c) => c.name), ev.target.checked) }), el("b", {}, g), el("span", { class: "small muted" }, ` · ${list.length}`)),
+          el("div", { class: "sb-compnames" }, shown.map((c) => el("label", { class: "sb-item" }, el("input", { type: "checkbox", checked: picked.has(c.name) || null, onchange: (ev) => setPicked([c.name], ev.target.checked) }), el("span", {}, c.name)))));
+      })) : null);
+  }
+  function syncButtons() {
+    saveBtn.disabled = !dirty || null;
+    saveBtn.textContent = dirty ? "Save" : "Saved";
+    buildBtn.disabled = (!cfg.enabled || dirty) || null;
+    buildBtn.title = !cfg.enabled ? "Turn Storybook on first" : dirty ? "Save first" : "Claude builds only the checked parts";
+  }
+  saveBtn.onclick = async () => {
+    try { const r = await api(`/api/project/${enc}/storybook`, { config: cfg }); cfg = { ...r.config }; d.state = r.state; dirty = false; draw(); toast(cfg.enabled ? "Saved: only the checked parts will be built." : "Storybook is off for this project."); }
+    catch (e) { showError(e); }
+  };
+  buildBtn.onclick = async () => {
+    const avail = comps;
+    const plan = { build: d.groups.flatMap((g) => g.items).filter((i) => cfg.sections.includes(i[0])).map((i) => ({ id: i[0], label: i[1] })), components: cfg.components === "all" ? avail.map((c) => c.name) : cfg.components, componentDetail: cfg.sections.filter((s) => d.groups[1].items.some((i) => i[0] === s)) };
+    start({ prompt: SB_PROMPT(p.name, plan, d.state.mode), project: p.name, title: `Storybook: ${p.title}` }).catch(showError);
+  };
+  draw();
 }

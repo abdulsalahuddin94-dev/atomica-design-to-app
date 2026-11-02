@@ -172,6 +172,7 @@ Web (Tailwind conventions), iOS (Apple HIG, Dynamic Type, SF Symbols), Android (
 - Local git repo only; do not push or create a remote without asking.
 
 ## Storybook (2026-09-30)
+- Opt-in by sections (Abdul, 2026-11-02, the-live-prototype branch): Storybook is off by default for every project; "Enable Storybook design system" (intake 0.7, the dashboard's project Storybook page) works for Code first and Figma first. Turning it on shows a checklist: presets Tokens only / What the developer needs (Recommended) / The full DS, then 7 groups (Foundations, Components with detail options and a component list, Patterns and screens, Docs pages, Code files, Display, Publishing). Saved in `status.json > storybook` (`tools/storybook_sections.cjs`); only checked sections are built and shown in the navigation (Storybook skill section 0). Code first stories import the real components (Show code = real usage). Connect services has "Check Storybook". Never enabled for a real project or published without the user's yes.
 - Target toolkit: Claude -> MCP -> Figma + Storybook + GitHub, so developers can browse, try and understand the DS.
 - Storybook is documentation, not production code, for Web and mobile alike. Default: React + Storybook for all platforms; mobile components styled to look like their iOS/Android counterparts.
 - Component, variant, property and token names in Storybook must match Figma exactly.
