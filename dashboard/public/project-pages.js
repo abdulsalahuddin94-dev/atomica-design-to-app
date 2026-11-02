@@ -10,6 +10,7 @@ const PROJECT_PAGES = [
   ["review", "Review", "i-message"],
   ["sync", "Sync", "i-refresh"],
   ["storybook", "Storybook", "i-book"],
+  ["github", "GitHub", "i-branch"],
   ["connect", "Connect services", "i-plug"],
 ];
 
@@ -64,6 +65,7 @@ async function renderProjectPage(name, page) {
   drawProjectNav(name, p.title, page, o ? { review: o.comments.open, sync: o.pendingFigmaSync.length + (o.storybook.unsynced ? 1 : 0) } : {});
   const main = el("main", { class: "project" });
   app.replaceChildren(main);
+  editorBanner(main, p); // who is editing, on every project page (shared projects only)
   if (page === "pipeline") return drawPipeline(main, p, o, data?.pipeline);
   if (page === "review") return drawReview(main, p, o);
   if (page === "sync") return drawSync(main, p);
@@ -71,6 +73,7 @@ async function renderProjectPage(name, page) {
   if (page === "connect") return drawConnect(main, p);
   if (page === "plan") return drawPlan(main, p);
   if (page === "storybook") return drawStorybook(main, p);
+  if (page === "github") return drawGithub(main, p);
   main.append(el("p", { class: "p-empty" }, "Unknown page."));
 }
 
@@ -1294,7 +1297,20 @@ async function drawStorybook(main, p) {
       el("dl", { class: "p-kv" },
         el("dt", {}, "Storybook"), el("dd", {}, st.exists ? `${st.stories} stories${st.port ? ` · port ${st.port}` : ""}${st.running ? " · running" : ""}` : "not built yet"),
         el("dt", {}, "Public link"), el("dd", {}, st.url ? el("a", { href: st.url, target: "_blank", rel: "noopener" }, st.url.replace(/^https?:\/\//, "")) : "none"),
-        el("dt", {}, "Selected"), el("dd", {}, cfg.enabled ? `${cfg.sections.length} sections · ${cfg.components === "all" ? "all components" : `${cfg.components.length} components`}` : "nothing (off)")));
+        el("dt", {}, "Selected"), el("dd", {}, cfg.enabled ? `${cfg.sections.length} sections · ${cfg.components === "all" ? "all components" : `${cfg.components.length} components`}` : "nothing (off)")),
+      // "Public link" checked: publish to the project's own repo at /storybook/ (tools/publish_storybook.cjs), on this click only
+      cfg.enabled && has("pages") && !dirty ? el("div", { class: "p-actions" }, el("button", { class: "ghost sm", type: "button", onclick: async (ev) => {
+        const btn = ev.currentTarget; btn.disabled = true;
+        try {
+          const c = await api(`/api/project/${enc}/storybook/publish-check`);
+          if (!c.ok) { showError(new Error((c.checks || []).filter((x) => !x.ok).map((x) => `${x.reason} ${x.fix}`).join("\n") || c.error)); return; }
+          const yes = await askText({ title: "Publish the Storybook", help: `It goes public at ${c.plan.storybook.url} (the project's repo, next to the prototype). Type publish to go ahead.`, placeholder: "publish", okLabel: "Publish" });
+          if (!yes || yes.toLowerCase() !== "publish") return;
+          toast("Building and publishing the Storybook…");
+          const r = await api(`/api/project/${enc}/storybook/publish`, {});
+          d.state = r.state; draw(); toast("Published. The link works in about a minute.");
+        } catch (e) { showError(e); } finally { btn.disabled = false; }
+      } }, icon("i-upload"), "Publish Storybook")) : null);
     if (!cfg.enabled) { body.replaceChildren(status); syncButtons(); return; }
     const presets = el("div", { class: "sb-presets" }, Object.entries(d.presets).map(([k, pr]) => el("button", { type: "button", class: `sb-preset${cfg.preset === k ? " on" : ""}`, onclick: () => applyPreset(k) },
       el("b", {}, pr.label), pr.recommended ? el("span", { class: "rec" }, "Recommended") : null, el("span", { class: "small muted" }, pr.note))));
@@ -1347,4 +1363,118 @@ async function drawStorybook(main, p) {
     start({ prompt: SB_PROMPT(p.name, plan, d.state.mode), project: p.name, title: `Storybook: ${p.title}` }).catch(showError);
   };
   draw();
+}
+
+// ---------- GitHub: one repo per project (tools/project_repo.cjs) ----------
+// Who is editing (a banner on every project page), the repo and its live links, the files a second designer would miss,
+// what this computer needs, and edit access. Project repos are always public; keys never go in (the guard blocks them).
+async function editorBanner(main, p) {
+  const enc = encodeURIComponent(p.name);
+  let e;
+  try { e = await api(`/api/project/${enc}/github/editor`); } catch { return; }
+  if (!e || e.off) return;
+  const act = async (action, extra = {}) => {
+    try {
+      const r = await api(`/api/project/${enc}/github/editor`, { action, ...extra });
+      toast(r.asked ? `Asked ${r.asked} to hand over. You can edit once they do.` : r.fromStale ? `${r.fromStale} had not edited for a while; you are the editor now.` : action === "take" ? "You are the editor now." : action === "handover" ? "Handed over." : "You keep editing.");
+      if (r.note) toast(r.note);
+      renderProjectPage(p.name, decodeURIComponent(location.hash.split("/")[3] || "pipeline"));
+    } catch (err) { showError(err); }
+  };
+  const when = (t) => (t ? fmtDate(t) : "");
+  let box;
+  if (e.mine && e.request) box = el("div", { class: "ed-banner ask", role: "status" }, icon("i-users"),
+    el("span", {}, el("b", {}, e.request.by), ` asks to take over this project (${when(e.request.at)}).`),
+    el("button", { class: "primary sm", type: "button", onclick: () => act("handover", { toRequester: true }) }, `Hand over to ${e.request.by}`),
+    el("button", { class: "ghost sm", type: "button", onclick: () => act("keep") }, "Keep editing"));
+  else if (e.mine) box = el("div", { class: "ed-banner mine", role: "status" }, icon("i-pen"), el("span", {}, "You are editing this project. Others see it and wait."),
+    el("button", { class: "ghost sm", type: "button", onclick: () => act("handover") }, "Hand over"));
+  else if (e.editor) box = el("div", { class: `ed-banner other${e.stale ? " stale" : ""}`, role: "status" }, icon("i-alert"),
+    el("span", {}, el("b", {}, e.editor.login), e.stale ? ` was editing, but not for over ${e.staleHours} hours.` : ` is editing this project since ${when(e.editor.since)}. Edits by two people at once can overwrite each other.`),
+    e.request?.by && e.request.by !== e.editor.login ? el("span", { class: "small muted" }, `${e.request.by} asked to take over.`) : null,
+    el("button", { class: e.stale ? "primary sm" : "ghost sm", type: "button", onclick: () => act("take") }, e.stale ? "Take over" : "Ask to take over"));
+  else box = el("div", { class: "ed-banner free", role: "status" }, icon("i-users"), el("span", {}, "Nobody is editing this project right now."),
+    el("button", { class: "ghost sm", type: "button", onclick: () => act("take") }, "Start editing"));
+  main.prepend(box);
+}
+
+async function drawGithub(main, p) {
+  const enc = encodeURIComponent(p.name);
+  const recheck = el("button", { class: "ghost sm", type: "button" }, icon("i-refresh"), "Check again");
+  main.append(head(p, "GitHub", "One repo holds the whole project, so the next designer opens it and continues.", [recheck]));
+  const body = el("div", { class: "gh-page" }, el("p", { class: "p-empty" }, "Reading the repo…"));
+  main.append(body);
+  let g, files = null;
+  const load = async (withFiles) => { g = await api(`/api/project/${enc}/github${withFiles ? "?files=1" : ""}`); if (withFiles) files = g.files; draw(); };
+  recheck.onclick = () => load(!!files).catch(showError);
+  const post = async (action, payload, okMsg) => { try { const r = await api(`/api/project/${enc}/github/${action}`, payload || {}); if (r.repo !== undefined) { g = r; if (r.files) files = r.files; } if (okMsg) toast(typeof okMsg === "function" ? okMsg(r) : okMsg); draw(); return r; } catch (e) { showError(e); return null; } };
+  const row = (ok, label, fix, optional) => el("li", {}, el("span", { class: `dot ${ok ? "good" : optional ? "wait" : "bad"}` }), el("span", {}, el("b", {}, label), ok ? null : el("span", { class: "small muted" }, ` · ${fix}`)));
+
+  function draw() {
+    const a = g.access || {};
+    const site = g.plan?.mode === "project-repo" ? g.plan.site : null;
+    // 1. the repo and its links
+    const repoPanel = el("section", { class: "p-panel" },
+      el("h2", { class: "section-title" }, "Repo and live links"),
+      g.repo ? el("dl", { class: "p-kv" },
+        el("dt", {}, "Repo"), el("dd", {}, el("a", { href: `https://github.com/${g.repo}`, target: "_blank", rel: "noopener" }, g.repo)),
+        el("dt", {}, "You"), el("dd", {}, !a.signedIn ? "not signed in to GitHub" : a.admin ? `${a.login} (owner)` : a.push ? `${a.login} (can edit)` : `${a.login} (can view)`),
+        el("dt", {}, "Live links"), el("dd", {}, site ? el("span", {}, el("a", { href: site, target: "_blank", rel: "noopener" }, site.replace(/^https:\/\//, "")), " → /prototype/ and /storybook/") : "each part has its own link (as before)"))
+        : el("p", { class: "small muted" }, "This project has no GitHub repo yet. It gets one the first time you publish or share it."),
+      g.repo ? el("label", { class: "gh-field" }, el("span", {}, "Publish to"),
+        el("select", { "aria-label": "Publish to", onchange: (ev) => post("settings", { pages: ev.target.value }, "Saved. The next Publish uses it.") },
+          el("option", { value: "project-repo", selected: g.settings.pages === "project-repo" || null }, "This repo: /prototype/ and /storybook/ (one link page)"),
+          el("option", { value: "separate", selected: g.settings.pages !== "project-repo" || null }, "As now: each part keeps its own link"))) : null,
+      el("p", { class: "small muted" }, "Project repos are public: anyone with the link can see the designs, so the links stay inside the company. Keys and tokens never go in; the guard below blocks them."));
+
+    // 2. files
+    const f = files;
+    const filesPanel = el("section", { class: "p-panel" },
+      el("h2", { class: "section-title" }, "Files a second designer needs"),
+      !g.isRepo ? el("p", { class: "small muted" }, "The project folder is not a Git repo yet.") : !f ? el("p", { class: "small muted" }, "Check which project files are not on GitHub yet, and which stay on this computer.")
+        : el("div", { class: "gh-files" },
+          f.secrets.length ? el("p", { class: "small conflict" }, `Keys or tokens in ${f.secrets.length} place(s): ${f.secrets.slice(0, 4).map((x) => `${x.file}:${x.line} (${x.kind})`).join(", ")}. Remove them before uploading.`) : null,
+          el("p", { class: "small" }, el("b", {}, `${f.notCommitted.length} not uploaded yet`), f.notCommitted.length ? ` · ${f.notCommitted.slice(0, 6).map((x) => x.file).join(", ")}${f.notCommitted.length > 6 ? "…" : ""}` : " · everything is on GitHub"),
+          f.localOnly.length ? el("ul", { class: "pchk" }, f.localOnly.map((x) => el("li", {}, el("span", { class: `dot ${x.upload ? "wait" : "good"}` }), el("span", {}, el("b", {}, x.file), el("span", { class: "small muted" }, ` · ${x.reason || "ignored by .gitignore: check whether the next designer needs it"}`))))) : null,
+          f.keptSecret.length ? el("p", { class: "small muted" }, `Stay on this computer (keys): ${f.keptSecret.join(", ")}.`) : null,
+          el("p", { class: "small muted" }, `${f.machine} machine files (packages, builds) are left out on purpose; each computer makes its own.`)),
+      g.isRepo ? el("div", { class: "p-actions" },
+        el("button", { class: "ghost sm", type: "button", onclick: () => load(true).catch(showError) }, icon("i-search"), "Check files"),
+        a.push && f && f.notCommitted.length && !f.secrets.length ? el("button", { class: "primary sm", type: "button", onclick: async (ev) => {
+          const msg = await askText({ title: "Upload project files", help: `${f.notCommitted.length} file(s) go to ${g.repo}. The comments' public Supabase key goes with them; secret keys never do.`, placeholder: "What changed (e.g. Profile screen and new Badge)", okLabel: "Upload" });
+          if (!msg) return; ev.target.disabled = true; await post("upload", { message: msg }, "Uploaded to GitHub.");
+        } }, icon("i-upload"), "Upload to GitHub") : null) : null);
+
+    // 3. this computer
+    const setup = el("section", { class: "p-panel" },
+      el("h2", { class: "section-title" }, "On this computer"),
+      el("ul", { class: "pchk" }, g.setup.map((s) => row(s.ok, s.label, s.fix, s.optional))),
+      el("p", { class: "small muted" }, g.comments.inProject ? "Comments: the Supabase URL and public key come with the project." : "Comments: the Supabase URL and public key go with the project at the next upload or publish."),
+      g.isRepo && !g.guard ? el("div", { class: "p-actions" }, el("button", { class: "ghost sm", type: "button", onclick: () => post("guard", {}, "The secrets guard is on for this project on this computer.").then(() => load(!!files)) }, icon("i-shield"), "Turn on the secrets guard")) : null);
+
+    // 4. access
+    const access = g.repo ? el("section", { class: "p-panel" },
+      el("h2", { class: "section-title" }, "Edit access"),
+      !a.signedIn ? el("p", { class: "small" }, "Sign in with GitHub (Connect services) to edit or request access.")
+        : !a.push ? el("div", { class: "p-actions" }, el("p", { class: "small" }, "You can view and comment. To change the project, ask its owner."),
+          el("button", { class: "primary sm", type: "button", onclick: () => post("request-access", {}, (r) => r.manual ? "Opened a prefilled request; send it on GitHub." : r.already ? "Your request is already open." : "Request sent to the owner.").then((r) => { if (r?.manual) window.open(r.url, "_blank", "noopener"); }) }, icon("i-send"), "Request edit access"))
+        : null,
+      a.admin ? el("div", { class: "gh-requests" },
+        el("p", { class: "small" }, el("b", {}, g.requests.length ? `${g.requests.length} request(s) to edit` : "No open requests to edit.")),
+        ...g.requests.map((r) => el("div", { class: "p-actions" }, el("span", {}, el("b", {}, r.login), el("span", { class: "small muted" }, ` · ${fmtDate(r.at)}`)),
+          el("a", { href: r.url, target: "_blank", rel: "noopener", class: "small" }, "request"),
+          el("button", { class: "primary sm", type: "button", onclick: () => post("approve", { number: r.number }, `${r.login} can edit now (GitHub sends them an invitation).`) }, icon("i-plus"), "Add as collaborator"))),
+        el("label", { class: "gh-field" }, el("span", {}, "Who merges changes"),
+          el("select", { "aria-label": "Who merges changes", onchange: (ev) => post("settings", { merge_policy: ev.target.value }, "Saved.") },
+            el("option", { value: "owner", selected: g.settings.merge_policy !== "editors" || null }, "Only the owner (editors send a review)"),
+            el("option", { value: "editors", selected: g.settings.merge_policy === "editors" || null }, "Editors may merge their own changes")))) : null,
+      a.push && !a.admin ? el("div", { class: "p-actions" }, el("p", { class: "small" }, g.mayMerge ? "You can edit and merge your own changes." : "You can edit; the owner merges your changes."),
+        el("button", { class: "ghost sm", type: "button", onclick: async () => {
+          const t = await askText({ title: "Send my changes for review", help: "Your changes go to a branch of your own and a pull request for the owner.", placeholder: "What changed", okLabel: "Send" });
+          if (t) post("review", { title: t }, (r) => (r.url ? "Pull request opened." : "Sent on your branch.")).then((r) => { if (r?.url) window.open(r.url, "_blank", "noopener"); });
+        } }, icon("i-branch"), "Send my changes for review")) : null) : null;
+
+    body.replaceChildren(repoPanel, filesPanel, setup, access || "");
+  }
+  try { await load(false); } catch (e) { body.replaceChildren(el("p", { class: "p-empty" }, e.message)); }
 }

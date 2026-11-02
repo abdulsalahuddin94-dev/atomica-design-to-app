@@ -10,6 +10,14 @@ import { createRequire } from "node:module";
 const { userEnv } = createRequire(import.meta.url)("../tools/publish_checks.cjs");
 const figmaSync = createRequire(import.meta.url)("../tools/figma_sync.cjs");
 const sbSections = createRequire(import.meta.url)("../tools/storybook_sections.cjs");
+const projectRepo = createRequire(import.meta.url)("../tools/project_repo.cjs");
+// a tool run to completion, its JSON answer (or the error text)
+function runTool(root, tool, args, json) {
+  const r = spawnSync(process.execPath, [path.join(root, "tools", tool), ...args], { cwd: root, encoding: "utf8", windowsHide: true, timeout: 60000, env: userEnv() });
+  const out = (r.stdout || "") + (r.stderr || "");
+  if (!json) return out;
+  try { return JSON.parse(out.slice(out.indexOf("{"))); } catch { return { ok: false, error: out.trim().slice(-300) }; }
+}
 
 // Storybook (opt-in, by sections): the components a project offers for the checklist. Figma first: its registry;
 // Code first without a registry: the component files of the linked code repo (read from a local cache clone).
@@ -354,9 +362,12 @@ function setDesignMode(dir, mode) {
   fs.writeFileSync(file, JSON.stringify(status, null, 2) + "\n");
 }
 
-// The public Supabase keys for comments (VITE_ only, as publish_prototype.cjs does); never the service key.
-function previewEnv() {
+// The public Supabase keys for comments (VITE_ only, as publish_prototype.cjs does); never the service key. The
+// project's own pair comes first (status.json > comments, it travels with the repo), then this computer's shared file.
+function previewEnv(dir) {
   const env = { ...process.env };
+  const pub = dir ? projectRepo.publicSupabase(dir) : {};
+  if (pub.url && pub.anonKey && !env.VITE_SUPABASE_URL) { env.VITE_SUPABASE_URL = pub.url; env.VITE_SUPABASE_ANON_KEY = pub.anonKey; }
   const shared = readText(path.join(os.homedir(), ".atomica", "supabase.env"));
   for (const m of shared.matchAll(/^\s*(VITE_SUPABASE_URL|VITE_SUPABASE_ANON_KEY)\s*=\s*(.*?)\s*$/gm)) if (!env[m[1]]) env[m[1]] = m[2].replace(/^["']|["']$/g, "");
   delete env.SUPABASE_SERVICE_KEY;
@@ -368,7 +379,7 @@ async function startPreview(dir) {
   const proto = path.join(dir, "prototype");
   const vite = path.join(proto, "node_modules", "vite", "bin", "vite.js");
   if (!fs.existsSync(vite)) return { ok: false, error: "The prototype's packages are not installed (npm install in its prototype folder)." };
-  const child = spawn(process.execPath, [vite, "--port", String(PREVIEW_PORT), "--strictPort", "--host", "127.0.0.1"], { cwd: proto, env: previewEnv(), stdio: "ignore", windowsHide: true });
+  const child = spawn(process.execPath, [vite, "--port", String(PREVIEW_PORT), "--strictPort", "--host", "127.0.0.1"], { cwd: proto, env: previewEnv(dir), stdio: "ignore", windowsHide: true });
   previews.set(dir, child);
   child.on("exit", () => { if (previews.get(dir) === child) previews.delete(dir); });
   for (let i = 0; i < 40; i++) {
@@ -429,6 +440,53 @@ function publishPrototype(root, dir, repo, create = false) {
     child.stderr.on("data", (d) => { out += d; });
     child.on("close", (code) => { publishing.delete(dir); resolve({ ok: code === 0, output: out.trim().split(/\r?\n/).slice(-6).join("\n") }); });
   });
+}
+
+// ---------- GitHub: one repo per project (tools/project_repo.cjs) ----------
+// Settings live in status.json > github { repo, pages, merge_policy } and current_editor. Project repos are always public
+// (Abdul, 2026-11-02); nothing here changes a repo's visibility. Uploads, requests, approvals and reviews run only from
+// the user's click.
+const git = (dir, args, timeout = 20000) => { const r = spawnSync("git", ["-C", dir, ...args], { encoding: "utf8", windowsHide: true, timeout, env: userEnv() }); return { ok: !r.error && r.status === 0, out: ((r.stdout || "") + (r.stderr || "")).trim() }; };
+// The editor others see: the shared copy's status.json when it is newer (read after a quiet fetch, nothing merged).
+function sharedEditor(dir, status) {
+  if (!fs.existsSync(path.join(dir, ".git"))) return status;
+  git(dir, ["fetch", "-q"], 6000);
+  const r = git(dir, ["show", "@{u}:status.json"]);
+  if (!r.ok) return status;
+  let remote; try { remote = JSON.parse(r.out); } catch { return status; }
+  const t = (s) => Math.max(Date.parse(s?.current_editor?.seen || 0) || 0, Date.parse(s?.takeover_request?.at || 0) || 0, Date.parse(s?.editor_changed_at || 0) || 0);
+  return t(remote) > t(status) ? { ...status, current_editor: remote.current_editor, takeover_request: remote.takeover_request, editor_changed_at: remote.editor_changed_at } : status;
+}
+// the GitHub login, kept 10 minutes (every project page shows who is editing)
+let loginCache = { v: null, at: 0 };
+function myLogin() { if (!loginCache.v || Date.now() - loginCache.at > 600e3) loginCache = { v: projectRepo.ghLogin(), at: Date.now() }; return loginCache.v; }
+async function githubState(dir, withFiles) {
+  const status = projectRepo.readStatus(dir);
+  const plan = projectRepo.pagesPlan(dir, status);
+  const a = plan.repo ? projectRepo.access(plan.repo) : { login: projectRepo.ghLogin(), push: false, admin: false };
+  const shared = sharedEditor(dir, status);
+  return {
+    repo: plan.repo, isRepo: fs.existsSync(path.join(dir, ".git")),
+    settings: { pages: status.github?.pages || "separate", merge_policy: status.github?.merge_policy || "owner" },
+    plan, access: a, mayMerge: projectRepo.mayMerge(status, a),
+    editor: projectRepo.editorState(shared, a.login),
+    requests: a.admin && plan.repo ? projectRepo.pendingRequests(plan.repo) : [],
+    guard: projectRepo.hookOn(dir),
+    comments: (() => { const p = projectRepo.publicSupabase(dir); return { url: !!p.url, publicKey: !!p.anonKey, inProject: !!status.comments?.anon_key }; })(),
+    setup: projectRepo.setupCheck(dir),
+    files: withFiles ? projectRepo.auditFiles(dir) : null,
+  };
+}
+// Commits status.json alone and shares it (editor changes); a rejected push is retried once on top of the shared copy.
+function shareStatus(dir, message) {
+  if (!fs.existsSync(path.join(dir, ".git"))) return { shared: false, note: "Saved on this computer (the project has no repo yet)." };
+  git(dir, ["add", "status.json"]);
+  if (!git(dir, ["commit", "-q", "-m", message, "--", "status.json"]).ok) return { shared: false, note: "Nothing to share." };
+  for (let i = 0; i < 2; i++) {
+    if (git(dir, ["push", "-q"], 30000).ok) return { shared: true };
+    git(dir, ["pull", "-q", "--rebase", "--autostash"], 30000);
+  }
+  return { shared: false, note: "Saved here; it reaches the others with the next upload (GitHub refused the push)." };
 }
 
 // ---------- Connect services: what this computer is connected to ----------
@@ -645,6 +703,94 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
     const b = await readBody(req);
     const config = sbSections.saveConfig(dir, b.config || {});
     send(res, 200, { config, state: await storybookState(dir) });
+    return true;
+  }
+  // One repo per project: settings, files check, secrets guard, access, review, editor (tools/project_repo.cjs)
+  if (req.method === "GET" && m[2] === "github") { send(res, 200, await githubState(dir, url.searchParams.get("files") === "1")); return true; }
+  if (req.method === "GET" && m[2] === "github/editor") { const st = projectRepo.readStatus(dir); send(res, 200, st.collaboration === "team" || st.current_editor || st.github?.repo ? projectRepo.editorState(sharedEditor(dir, st), myLogin()) : { off: true }); return true; }
+  if (req.method === "POST" && m[2] === "github/settings") {
+    const b = await readBody(req);
+    const s = projectRepo.readStatus(dir);
+    const g = { ...(s.github || {}) };
+    if (["project-repo", "separate"].includes(b.pages)) g.pages = b.pages;
+    if (["owner", "editors"].includes(b.merge_policy)) g.merge_policy = b.merge_policy;
+    if (!g.repo) { const r = projectRepo.projectRepo(dir, s); if (r) g.repo = r; }
+    s.github = g;
+    projectRepo.writeStatus(dir, s);
+    send(res, 200, await githubState(dir, false));
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "github/guard") { const r = projectRepo.installHook(dir); send(res, r.ok ? 200 : 400, r.ok ? r : { error: r.reason }); return true; }
+  if (req.method === "POST" && m[2] === "github/upload") {
+    // the project's files to its repo (people with write access): the comments' public Supabase pair goes with them,
+    // the secrets guard is turned on, everything is scanned, then one commit and a push
+    const b = await readBody(req);
+    if (!fs.existsSync(path.join(dir, ".git"))) { send(res, 400, { error: "This project folder is not a Git repo yet." }); return true; }
+    projectRepo.recordPublicSupabase(dir);
+    const audit = projectRepo.auditFiles(dir);
+    if (audit.secrets.length) { send(res, 400, { error: projectRepo.secretsMessage({ items: audit.secrets, commit: true }) }); return true; }
+    projectRepo.installHook(dir);
+    git(dir, ["add", "-A"]);
+    const c = git(dir, ["commit", "-q", "-m", String(b.message || "Update project files").slice(0, 200)]);
+    if (!c.ok && !/nothing to commit/.test(c.out)) { send(res, 400, { error: c.out.split("\n").slice(-4).join("\n") }); return true; }
+    let p = git(dir, ["push", "-q"], 60000);
+    if (!p.ok) { git(dir, ["pull", "-q", "--rebase", "--autostash"], 60000); p = git(dir, ["push", "-q"], 60000); }
+    send(res, p.ok ? 200 : 400, p.ok ? await githubState(dir, true) : { error: `Committed here, not uploaded: ${p.out.split("\n").pop()}` });
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "github/request-access") {
+    const plan = projectRepo.pagesPlan(dir);
+    if (!plan.repo) { send(res, 400, { error: "This project has no GitHub repo." }); return true; }
+    const r = projectRepo.requestAccess(plan.repo, path.basename(dir));
+    send(res, r.ok ? 200 : 400, r.ok ? r : { error: r.error });
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "github/approve") {
+    const b = await readBody(req);
+    const plan = projectRepo.pagesPlan(dir);
+    // only a request that is really open on the repo, and only by its owner (admin)
+    const a = plan.repo ? projectRepo.access(plan.repo) : {};
+    const reqd = a.admin ? projectRepo.pendingRequests(plan.repo).find((x) => x.number === b.number) : null;
+    if (!reqd) { send(res, 400, { error: a.admin ? "That request is no longer open." : "Only the repo owner adds collaborators." }); return true; }
+    try { projectRepo.approveRequest(plan.repo, reqd); send(res, 200, await githubState(dir, false)); } catch (e) { send(res, 400, { error: String(e.stderr || e.message).trim().split("\n").pop() }); }
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "github/review") {
+    const b = await readBody(req);
+    const plan = projectRepo.pagesPlan(dir);
+    const a = plan.repo ? projectRepo.access(plan.repo) : {};
+    if (!a.push) { send(res, 400, { error: "You need edit access first (Request edit access)." }); return true; }
+    try { const r = projectRepo.sendForReview(dir, { login: a.login, title: String(b.title || "").slice(0, 120) }); send(res, r.ok ? 200 : 400, r.ok ? r : { error: r.error }); }
+    catch (e) { send(res, 400, { error: String(e.stderr || e.message).trim().split("\n").pop() }); }
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "github/editor") {
+    const b = await readBody(req);
+    const me = myLogin();
+    if (!me) { send(res, 400, { error: "Sign in with GitHub first, so the others see who is editing." }); return true; }
+    const local = projectRepo.readStatus(dir);
+    const s = sharedEditor(dir, local);
+    for (const k of ["current_editor", "takeover_request"]) { if (s[k]) local[k] = s[k]; else delete local[k]; }
+    let r;
+    if (b.action === "take") r = projectRepo.requestTakeover(local, me);
+    else if (b.action === "handover") r = projectRepo.handOver(local, me, !!b.toRequester);
+    else if (b.action === "keep") { if (local.current_editor?.login === me) { delete local.takeover_request; r = { ok: true }; } else r = { ok: false, error: "Only the current editor answers a request." }; }
+    else r = { ok: false, error: "Unknown action." };
+    if (!r.ok) { send(res, 400, { error: r.error }); return true; }
+    local.editor_changed_at = new Date().toISOString();
+    projectRepo.writeStatus(dir, local);
+    const sh = shareStatus(dir, b.action === "take" ? (r.asked ? `Take-over request (${me})` : `Editing: ${me}`) : b.action === "handover" ? `Handed over (${me})` : `Kept editing (${me})`);
+    send(res, 200, { ...r, ...sh, state: await githubState(dir, false) });
+    return true;
+  }
+  if (req.method === "GET" && m[2] === "storybook/publish-check") { send(res, 200, runTool(root, "publish_storybook.cjs", [dir, "--check"], true)); return true; }
+  if (req.method === "POST" && m[2] === "storybook/publish") {
+    const r = await new Promise((resolve) => {
+      const child = spawn(process.execPath, [path.join(root, "tools", "publish_storybook.cjs"), dir], { cwd: root, windowsHide: true, env: userEnv() });
+      let out = ""; child.stdout.on("data", (d) => { out += d; }); child.stderr.on("data", (d) => { out += d; });
+      child.on("close", (code) => resolve({ ok: code === 0, output: out.trim().split(/\r?\n/).slice(-6).join("\n") }));
+    });
+    send(res, r.ok ? 200 : 400, r.ok ? { ...r, state: await storybookState(dir) } : { error: r.output || "Publish failed" });
     return true;
   }
   // ownership rules (sync-rules.json), the linked code repo (status.json > code_repo), the daily check's note

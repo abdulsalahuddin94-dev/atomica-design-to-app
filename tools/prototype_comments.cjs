@@ -54,10 +54,18 @@ if (flag('--schema')) {
   process.exit(0);
 }
 
-const URL_ = (env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const KEY = env.SUPABASE_SERVICE_KEY;
+// The project's own Supabase pair travels with its repo (status.json > comments, tools/project_repo.cjs), so a designer
+// who opens the project from GitHub reads its comments with no setup: reading is allowed to the public key by row level
+// security. Resolving and replying are updates, refused to that key on purpose (anyone with the live link has it), so
+// they need the secret key, pasted once on each computer (Connect services > Supabase, ~/.atomica, never in the repo).
+const pub = require('./project_repo.cjs').publicSupabase(project);
+const URL_ = (pub.url || env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const readOnly = !flag('--resolve');
+const KEY = env.SUPABASE_SERVICE_KEY || (readOnly ? pub.anonKey : null);
 if (!URL_ || !KEY) {
-  console.error(`No VITE_SUPABASE_URL / SUPABASE_SERVICE_KEY in ~/.atomica/supabase.env or ${path.relative(ROOT, envFile)}. See the header of this file for the format.`);
+  console.error(!URL_ || readOnly
+    ? `No Supabase URL and key for comments: they come with the project (status.json > comments) or from ~/.atomica/supabase.env (Connect services > Supabase).`
+    : 'Resolving or replying needs the Supabase secret key on this computer: ask the project owner for it and paste it once in Connect services > Supabase (it stays in ~/.atomica, never in the repo).');
   process.exit(3);
 }
 // Legacy service_role keys are JWTs and also go in Authorization; the newer secret keys (sb_secret_...) only in apikey.
@@ -74,7 +82,9 @@ async function main() {
       const r = await fetch(`${api}?select=${col}&limit=1`, { headers });
       out[col] = r.ok;
     }
-    const b = await fetch(`${URL_}/storage/v1/bucket/prototype-comments`, { headers });
+    // the bucket can be read only with the secret key; with the project's public key it is not checked (secret: false)
+    out.secret = !!env.SUPABASE_SERVICE_KEY;
+    const b = out.secret ? await fetch(`${URL_}/storage/v1/bucket/prototype-comments`, { headers }) : { ok: true };
     out.bucket = b.ok;
     out.upToDate = out.table && out.reply && out.images && out.bucket;
     console.log(JSON.stringify(out));

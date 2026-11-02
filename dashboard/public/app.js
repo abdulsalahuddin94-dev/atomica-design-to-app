@@ -487,6 +487,7 @@ function renderProjects() {
   app.replaceChildren($("#tpl-projects").content.cloneNode(true));
   $("#refresh").addEventListener("click", () => { loadProjects(); checkUpdates(true); });
   $("#add-project").addEventListener("click", () => openProjectForm());
+  $("#open-github").addEventListener("click", () => openFromGitHub());
   for (const b of app.querySelectorAll("[data-view]")) {
     b.setAttribute("aria-pressed", String(b.dataset.view === projectView));
     b.addEventListener("click", () => {
@@ -1453,3 +1454,17 @@ initRail();
 route();
 checkUpdates(true);
 refreshAccount();
+
+// ---------- Open a shared project from GitHub (tools/project_repo.cjs) ----------
+// The repo is cloned into My Projects as it is; the project's GitHub page then lists what this computer still needs.
+async function openFromGitHub() {
+  const link = await askText({ title: "Open a project from GitHub", help: "Paste the project's GitHub link. It is copied into My Projects with everything in it; nothing on GitHub changes.", placeholder: "https://github.com/owner/project", okLabel: "Open" });
+  if (!link) return;
+  toast("Copying the project from GitHub…");
+  try {
+    const r = await api("/api/projects/open-github", { url: link });
+    const todo = (r.setup || []).filter((s) => !s.ok && !s.optional).length;
+    toast(todo ? `Opened ${r.name}. ${todo} thing(s) to set up on this computer: see its GitHub page.` : `Opened ${r.name}.`);
+    location.hash = `#/project/${encodeURIComponent(r.name)}/${todo ? "github" : "pipeline"}`;
+  } catch (e) { showError(e); }
+}

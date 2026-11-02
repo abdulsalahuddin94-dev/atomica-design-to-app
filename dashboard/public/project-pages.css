@@ -365,3 +365,17 @@ body.rail.focus .shell{grid-template-columns:minmax(0,1fr)}
 .ws-sgroup{display:flex;justify-content:space-between;font:600 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:#8A919C;padding:8px 10px 2px}
 .ws-scode{font:600 10px var(--sans);color:var(--yellow);padding:1px 5px;border-radius:999px;background:rgba(255,210,0,.12)}
 .ws-snone{color:#8A919C;font-size:12.5px;margin:6px 10px}
+
+/* GitHub page and the editor banner */
+.gh-page{display:grid;gap:14px}
+.gh-field{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px}
+.gh-field span{color:var(--ink-3)}
+.gh-field select{border:1px solid var(--rule);border-radius:8px;background:var(--sheet-2);color:var(--ink);padding:6px 8px;font:13px var(--sans);max-width:100%}
+.gh-field select option{background:var(--sheet);color:var(--ink)}
+.gh-files{display:grid;gap:8px}
+.gh-requests{display:grid;gap:8px}
+.ed-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;margin-bottom:14px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet);font-size:13.5px}
+.ed-banner > span{flex:1;min-width:200px}
+.ed-banner .ic{width:16px;height:16px;flex:none}
+.ed-banner.other,.ed-banner.ask{background:var(--yellow-soft);border-color:color-mix(in srgb,var(--yellow) 70%,var(--rule));color:var(--yellow-ink)}
+.ed-banner.mine{border-color:color-mix(in srgb,var(--cyan) 50%,var(--rule))}

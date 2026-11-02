@@ -1204,6 +1204,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && p === "/api/projects") return send(res, 200, { projects: listProjects() });
     if (p.startsWith("/api/figma-tools") && await handleFigmaTools(req, res, url, { send, readBody, runInTerminal, root: ROOT, projectDir })) return;
     if (p.startsWith("/api/project/") && await handleProjectApi(req, res, url, { send, projectDir, readBody, root: ROOT, integrations })) return;
+    // Open a shared project: clone its repo into My Projects, then list what this computer still needs (project_repo.cjs)
+    if (req.method === "POST" && p === "/api/projects/open-github") {
+      const b = await readBody(req);
+      const pr = requireFrom(import.meta.url)("../tools/project_repo.cjs");
+      const r = pr.openFromGitHub(String(b.url || ""), { base: PROJECTS });
+      return send(res, r.ok ? 200 : 400, r.ok ? { name: r.name, repo: r.repo, setup: pr.setupCheck(r.dir) } : { error: r.error, name: r.name || null });
+    }
     if (req.method === "POST" && p === "/api/projects") { const b = await readBody(req); const r = createProject(b.title); return send(res, r.ok ? 200 : 400, r); }
     const pr = p.match(/^\/api\/projects\/([^/]+)(\/inputs|\/restore)?$/);
     if (pr) {
