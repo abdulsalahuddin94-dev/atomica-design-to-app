@@ -43,6 +43,19 @@ FONT_WEIGHTS = {"thin": 100, "extralight": 200, "light": 300, "regular": 400, "m
                 "semibold": 600, "bold": 700, "extrabold": 800, "black": 900}
 
 
+def rel(path):
+    """Path for messages: relative to the Root when inside it (projects may live in another folder)."""
+    try:
+        return pathlib.Path(path).resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return pathlib.Path(path).as_posix()
+
+
+def is_duration(var):
+    """A motion duration token (milliseconds): a Motion collection number or a .../duration/... name."""
+    return bool(re.search(r"(?i)(^|/)duration(/|$)", var["name"])) or "motion" in var.get("collection", "").lower()
+
+
 def css_value(var, value, names):
     if isinstance(value, dict) and "alias" in value:
         target = names.get(value["alias"])
@@ -53,6 +66,12 @@ def css_value(var, value, names):
         return f"{round(value / 100 if value > 1 else value, 3):g}"
     if var["type"] == "number" and isinstance(value, (int, float)) and "FONT_WEIGHT" in scopes:
         return f"{value:g}"
+    if var["type"] == "number" and isinstance(value, (int, float)) and is_duration(var):
+        # Motion durations (md/sys/motion/duration/*) are milliseconds
+        return f"{value:g}ms"
+    if var["type"] == "string" and str(value).strip().startswith("cubic-bezier("):
+        # Motion easings (md/sys/motion/easing/*) are CSS timing functions, written unquoted
+        return str(value).strip()
     if var["type"] in ("dimension", "number") and isinstance(value, (int, float)):
         # Figma FLOAT variables (sizes, spacing, radius, line height, letter spacing) are px
         return f"{round(value, 3):g}px"
@@ -83,7 +102,7 @@ def write_style_css(folder, registry, names):
             return
         styles_dir.mkdir(parents=True, exist_ok=True)
         path.write_text(STYLE_MARK + "\n" + body, encoding="utf-8")
-        written.append(path.relative_to(ROOT).as_posix())
+        written.append(rel(path))
 
     text = [s for s in (registry.get("text_styles") or []) if isinstance(s, dict) and (s.get("bound") or {}).get("fontSize")]
     if text:
@@ -237,7 +256,7 @@ def main():
     )
 
     files = [platform_file[0]] if platform_file else [p["file"] for p in platforms]
-    print(f"{len(variables)} variables -> {out.relative_to(ROOT).as_posix()}/tokens.css, tokens.ts"
+    print(f"{len(variables)} variables -> {rel(out)}/tokens.css, tokens.ts"
           + "".join(f", {f}" for f in files) + f" (platform names: {pn.PLATFORM_LABEL[pkey]})")
     for f in styles_written:
         print(f"generated from the Figma styles: {f}")

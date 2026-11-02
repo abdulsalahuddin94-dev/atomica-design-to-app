@@ -25,12 +25,20 @@ export function href(r: Partial<Route>): string {
   return `#/${c.slug}?${p.toString()}`;
 }
 
-export const go = (slug: string) => { if (slug) window.location.hash = href({ slug, overlay: null, comment: null }); };
-export const overlay = (slug: string) => { window.location.hash = href({ overlay: slug }); };
+// How the last screen change was asked for (read by shell/motion.tsx to pick the transition): go = forward,
+// back = back. A hash change with no recent intent (browser buttons, the screen list) gets no animation.
+export const navIntent = { kind: 'none' as 'forward' | 'back' | 'none', at: 0 };
+const intend = (kind: 'forward' | 'back') => { navIntent.kind = kind; navIntent.at = Date.now(); };
+
+export const go = (slug: string) => { if (slug) { intend('forward'); window.location.hash = href({ slug, overlay: null, comment: null }); } };
+// Overlays replace the history entry instead of adding one, so the browser's Back after closing a sheet goes to the
+// previous screen, never back into the sheet (location.replace still fires hashchange).
+const replaceHash = (h: string) => window.location.replace(window.location.href.split('#')[0] + h);
+export const overlay = (slug: string) => { replaceHash(href({ overlay: slug })); };
 export const back = () => {
   const r = parse();
-  if (r.overlay) window.location.hash = href({ overlay: null });
-  else window.history.back();
+  if (r.overlay) replaceHash(href({ overlay: null }));
+  else { intend('back'); window.history.back(); }
 };
 
 export function useRoute(): Route {

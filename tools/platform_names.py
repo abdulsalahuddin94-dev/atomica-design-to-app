@@ -132,11 +132,32 @@ def _strip_color(name):
     return re.sub(r"(?i)^colou?r/", "", name)
 
 
+def _motion(var):
+    """("duration", ms) | ("easing", (x1, y1, x2, y2)) for a Motion token (md/sys/motion/...), else None."""
+    if not re.search(r"(?i)(^|/)motion(/|$)", var["name"] + "/" + var.get("collection", "")):
+        return None
+    val = next(iter(var["values"].values()), None)
+    m = re.match(r"\s*cubic-bezier\(([^)]*)\)", str(val))
+    if m:
+        return ("easing", tuple(float(x) for x in m.group(1).split(",")))
+    return ("duration", val) if _num(val) is not None else None
+
+
+def _motion_key(var):
+    return camel(re.sub(r"(?i)^.*?motion/", "", var["name"]), dedupe=False)
+
+
 def token_code(var, platform, role=""):
     """[{label, name}] for one variable; the first entry is what developers type."""
     p = platform_key(platform)
     name, col, typ = var["name"], var["collection"], var["type"]
     role = (role or "").lower()
+    if _motion(var) and p in ("ios", "android"):
+        key = _motion_key(var)
+        if p == "ios":
+            return [{"label": "SwiftUI", "name": f"Motion.{key}"}]
+        return [{"label": "Compose", "name": f"AppTheme.Motion.{key}"},
+                {"label": "M3 token", "name": "md.sys.motion." + ".".join(re.sub(r"(?i)^.*?motion/", "", name).split("/"))}]
     if p == "ios":
         if typ == "color":
             return [{"label": "SwiftUI", "name": f"Color.{camel(_strip_color(name))}"},
@@ -254,7 +275,7 @@ def swift_source(variables, collections, text_styles, project):
         "    }",
         "",
     ]
-    numbers, seen = {}, set()
+    numbers, seen, motion = {}, set(), []
     for v in variables.values():
         modes = collections[v["collection"]]["modes"]
         res = v.get("resolved") or {}
@@ -269,9 +290,20 @@ def swift_source(variables, collections, text_styles, project):
                 lines.append(f"    static let {code} = Color(light: 0x{_hex(res[light])}, dark: 0x{_hex(res[dark])}) // {v['collection']}::{v['name']}")
             elif _hex(res.get(modes[0])):
                 lines.append(f"    static let {code} = Color(hex: 0x{_hex(res[modes[0]])}) // {v['collection']}::{v['name']}")
+        elif _motion(v):
+            motion.append(v)
         elif _num(next(iter(v["values"].values()), None)) is not None:
             numbers.setdefault(_collection_name(v["collection"]), []).append(v)
     lines += ["}", ""]
+    if motion:
+        lines.append("enum Motion {")
+        for v in motion:
+            kind, val = _motion(v)
+            if kind == "duration":
+                lines.append(f"    static let {_motion_key(v)}: Double = {val / 1000:g} // seconds; {v['collection']}::{v['name']}")
+            else:
+                lines.append(f"    static let {_motion_key(v)} = Animation.timingCurve({', '.join(f'{x:g}' for x in val)}, duration: 0.3) // pass the duration you use; {v['collection']}::{v['name']}")
+        lines += ["}", ""]
     for enum, vs in numbers.items():
         lines.append(f"enum {enum} {{")
         names = set()
@@ -297,6 +329,7 @@ def kotlin_source(variables, collections, text_styles, project, roles):
         "",
         "import androidx.compose.foundation.shape.RoundedCornerShape",
         "import androidx.compose.material3.*",
+        "import androidx.compose.animation.core.CubicBezierEasing",
         "import androidx.compose.runtime.*",
         "import androidx.compose.ui.graphics.Color",
         "import androidx.compose.ui.text.TextStyle",
@@ -305,10 +338,12 @@ def kotlin_source(variables, collections, text_styles, project, roles):
         "import androidx.compose.ui.unit.sp",
         "",
     ]
-    palette, m3, custom, dims = [], {}, {}, {}
+    palette, m3, custom, dims, motion = [], {}, {}, {}, []
     for v in variables.values():
         role = roles.get(v["collection"], "")
-        if v["type"] == "color":
+        if _motion(v):
+            motion.append(v)
+        elif v["type"] == "color":
             code = token_code(v, "android", role)[0]["name"]
             if code.startswith("Palette."):
                 palette.append((code.split(".", 1)[1], v))
@@ -352,6 +387,15 @@ def kotlin_source(variables, collections, text_styles, project, roles):
             continue
         lines.append(f"    object {obj} {{")
         lines += [f"        val {c} = {_num(next(iter(v['values'].values())))}.dp // {v['collection']}::{v['name']}" for c, v in vs.items()]
+        lines.append("    }")
+    if motion:
+        lines.append("    object Motion {")
+        for v in motion:
+            kind, val = _motion(v)
+            if kind == "duration":
+                lines.append(f"        const val {_motion_key(v)} = {_num(val)} // ms; {v['collection']}::{v['name']}")
+            else:
+                lines.append(f"        val {_motion_key(v)} = CubicBezierEasing({', '.join(f'{x:g}f' for x in val)}) // {v['collection']}::{v['name']}")
         lines.append("    }")
     lines += ["}", ""]
     if dims.get("M3Shapes"):

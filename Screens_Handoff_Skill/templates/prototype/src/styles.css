@@ -6,6 +6,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 /* @theme from the project's tokens (colors, spacing, radius as Tailwind names), written by tools/build_prototype.py. */
 @import './generated/theme.css';
+/* Motion roles filled from the project's DS motion tokens (tools/build_prototype.py); defaults below are 0ms. */
+@import './generated/motion.css';
 
 /* The project's tokens and DS styles, straight from its Storybook (modes switch through data-semantic). */
 @import '@ds/tokens/tokens.css';
@@ -61,3 +63,54 @@ aside ul { list-style: none; margin: 0; padding: 0; }
 @keyframes fp-flash { 50% { outline-color: transparent; } }
 .fp-pin-selected { animation: fp-pin 1s ease-in-out 3; }
 @keyframes fp-pin { 50% { transform: translate(-50%, -100%) scale(1.25); } }
+
+/* ---------- Motion (shell/motion.tsx) ----------
+   Roles default to 0ms / linear, so a project without DS motion tokens switches screens without animation;
+   src/generated/motion.css fills them from the DS tokens. Reduce motion (OS setting) turns everything off. */
+:where(:root) { /* zero specificity: generated/motion.css wins */
+  --fp-dur-press: 0ms; --fp-dur-exit: 0ms; --fp-dur-fade: 0ms; --fp-dur-screen: 0ms; --fp-dur-expand: 0ms;
+  --fp-ease-standard: linear; --fp-ease-in: linear; --fp-ease-out: linear; --fp-ease-enter: linear; --fp-ease-exit: linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root, :root * { --fp-dur-press: 0ms !important; --fp-dur-exit: 0ms !important; --fp-dur-fade: 0ms !important; --fp-dur-screen: 0ms !important; --fp-dur-expand: 0ms !important; }
+}
+.fp-m-stage { position: relative; isolation: isolate; --fp-dir: 1; } /* its z-indexes stay inside: overlays and pins stay on top */
+.fp-m-stage[data-dir='rtl'] { --fp-dir: -1; }
+.fp-m-enter { position: relative; z-index: 1; }
+.fp-m-leave { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; }
+.fp-m-leave.fp-m-fall { z-index: 2; }
+/* push / pop: shared axis X (the new screen from the end side going forward, from the start side going back) */
+.fp-m-enter.fp-m-push { animation: fp-axis-in var(--fp-dur-screen) var(--fp-ease-enter) both; --fp-from: calc(var(--fp-dir) * 30%); }
+.fp-m-enter.fp-m-pop { animation: fp-axis-in var(--fp-dur-screen) var(--fp-ease-enter) both; --fp-from: calc(var(--fp-dir) * -30%); }
+.fp-m-leave.fp-m-push { animation: fp-axis-out var(--fp-dur-screen) var(--fp-ease-exit) both; --fp-to: calc(var(--fp-dir) * -30%); }
+.fp-m-leave.fp-m-pop { animation: fp-axis-out var(--fp-dur-screen) var(--fp-ease-exit) both; --fp-to: calc(var(--fp-dir) * 30%); }
+@keyframes fp-axis-in { from { transform: translateX(var(--fp-from)); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fp-axis-out { from { transform: none; opacity: 1; } to { transform: translateX(var(--fp-to)); opacity: 0; } }
+/* fade / player: fade through (out first, then in with a slight scale) */
+.fp-m-enter.fp-m-fade, .fp-m-enter.fp-m-player { animation: fp-through-in var(--fp-dur-fade) var(--fp-ease-standard) both; }
+.fp-m-leave.fp-m-fade, .fp-m-leave.fp-m-player { animation: fp-through-out var(--fp-dur-fade) var(--fp-ease-standard) both; }
+@keyframes fp-through-in { 0%, 35% { opacity: 0; transform: scale(0.92); } 100% { opacity: 1; transform: none; } }
+@keyframes fp-through-out { 0% { opacity: 1; } 35%, 100% { opacity: 0; } }
+/* rise: the player opens from the Mini Player at the bottom; fall: it slides back down */
+.fp-m-enter.fp-m-rise { animation: fp-rise var(--fp-dur-expand) var(--fp-ease-enter) both; }
+.fp-m-leave.fp-m-rise { animation: fp-hold var(--fp-dur-expand) linear both; }
+.fp-m-leave.fp-m-fall { animation: fp-fall var(--fp-dur-screen) var(--fp-ease-exit) both; }
+.fp-m-enter.fp-m-fall { animation: fp-hold var(--fp-dur-screen) linear both; }
+@keyframes fp-rise { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fp-fall { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes fp-hold { from { opacity: 1; } to { opacity: 1; } }
+/* A tooltip on an entering screen (e.g. a confirmation) fades in after the screen settles. */
+.fp-m-enter [data-component='Tooltip'] { animation: fp-tip-in var(--fp-dur-fade) var(--fp-ease-in) var(--fp-dur-fade) both; }
+@keyframes fp-tip-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+/* Overlays: the backdrop fades and a sheet slides up; closing reverses it, faster. An overlay screen that draws its own
+   full-screen Scrim gets no second backdrop from the shell. */
+.fp-ov:has([data-figma-name='Scrim']), .fp-ov:not(:has(.fp-screen *)) { background: transparent; } /* own scrim, or still loading */
+.fp-ov { z-index: 1; }
+.fp-ov-in { animation: fp-fade-in var(--fp-dur-fade) var(--fp-ease-standard) both; }
+.fp-ov-out { animation: fp-fade-out var(--fp-dur-exit) var(--fp-ease-exit) both; }
+.fp-ov-in :is([data-component='Sheet'], [data-figma-name='Sheet']) { animation: fp-sheet-in var(--fp-dur-screen) var(--fp-ease-enter) both; }
+.fp-ov-out :is([data-component='Sheet'], [data-figma-name='Sheet']) { animation: fp-sheet-out var(--fp-dur-exit) var(--fp-ease-exit) both; }
+@keyframes fp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fp-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes fp-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fp-sheet-out { from { transform: none; } to { transform: translateY(100%); } }

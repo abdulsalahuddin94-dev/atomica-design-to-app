@@ -2,10 +2,12 @@
 // the Code panel (reference code per platform; an element picked with Inspect highlights its lines) and Comments
 // (a tap drops a pin with the element's Figma node; comments are shared through Supabase or kept locally).
 // The shell is chrome only (neutral colors); everything inside the phone comes from the generated screens, which use
-// the project's DS components and tokens. ?bare=1 renders the screen alone at its Figma size (fidelity captures).
+// the project's DS components and tokens. ?bare=1 renders the screen alone at its Figma size (fidelity captures),
+// without motion; elsewhere screens and overlays animate with the DS motion tokens (shell/motion.tsx).
 import React from 'react';
 import { SCREENS, FLOWS, MODES, DEVICE, PROJECT } from '../generated/routes';
 import { useRoute, href, go } from './nav';
+import { MotionStage, OverlayStage } from './motion';
 import { CodePanel } from './CodePanel';
 import { useScreenLanguage } from './i18n';
 import { CommentsPanel, type Pending } from './CommentsPanel';
@@ -329,17 +331,15 @@ export function App() {
   ));
   const screen = (
     <>
+      <MotionStage slug={slug} rtl={r.lang === 'ar'} render={(s) => s !== slug ? <ScreenView slug={s} mode={r.mode} lang={r.lang} bare={false} height={screenH} /> : (
       <ScreenView slug={slug} mode={r.mode} lang={r.lang} bare={false} height={screenH} selected={selected}
         pins={commenting ? [
           ...comments.filter((c) => c.status !== 'resolved' || c.id === selected).map((c) => ({ id: c.id, n: comments.indexOf(c) + 1, x: (c.lang === 'ar') !== (r.lang === 'ar') ? def.w - c.x : c.x, y: c.y, resolved: c.status === 'resolved', status: pinStatus[c.id] })), // RTL mirrors the layout, so the pin mirrors too
           ...(pending ? [{ id: 'pending', n: 0, x: pending.x, y: pending.y, resolved: false, pending: true }] : []),
         ] : undefined}
-        onPin={(id) => { const c = comments.find((x) => x.id === id); if (c) focusComment(c); }} />
-      {r.overlay && (
-        <div className="absolute inset-0 bg-black/40">
-          <ScreenView slug={r.overlay} mode={r.mode} lang={r.lang} bare={false} height={screenH} />
-        </div>
-      )}
+        onPin={(id) => { const c = comments.find((x) => x.id === id); if (c) focusComment(c); }} />)} />
+      <OverlayStage overlay={r.overlay} className="absolute inset-0 bg-black/40"
+        render={(s) => <ScreenView slug={s} mode={r.mode} lang={r.lang} bare={false} height={screenH} />} />
     </>
   );
 
