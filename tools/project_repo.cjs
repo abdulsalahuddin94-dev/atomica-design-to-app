@@ -140,6 +140,7 @@ const LINK_MARK = '<!-- atomica-link-page -->';
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // The root page of the project's site: one link per published part (the folders present).
 function linkPage(title, parts) {
+  title = String(title).replace(/_/g, ' '); // a folder name reads as words
   const links = parts.map((p) => `<a href="./${p}/">${p === 'prototype' ? 'Live prototype' : 'Storybook design system'}<span>${p === 'prototype' ? 'Try the screens' : 'Tokens and components for developers'}</span></a>`).join('\n    ');
   return `<!doctype html>\n${LINK_MARK}\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
 <style>:root{color-scheme:light dark;--bg:#fafafa;--fg:#16181d;--mut:#5d6470;--card:#fff;--line:#e3e5e9}@media(prefers-color-scheme:dark){:root{--bg:#121417;--fg:#eceef1;--mut:#9aa1ab;--card:#1b1e23;--line:#2b2f36}}
@@ -158,14 +159,17 @@ function pushPages({ repo, subdir, dist, title, run = defaultRun, message }) {
     let has = true;
     try { run('git', ['clone', '-q', '--depth', '1', '--branch', 'gh-pages', url, tmp]); } catch { has = false; }
     if (!has) { run('git', ['-C', tmp, 'init', '-q']); run('git', ['-C', tmp, 'checkout', '-q', '--orphan', 'gh-pages']); }
-    // an older single-site publish at the root (no link page) moves out of the way only for its own files
+    // An older single-site publish at the root (no link page; e.g. the Storybook before the switch) gives way to the link
+    // page: its files leave the root (they stay in the branch history); the parts' folders stay.
+    const rootIdx = path.join(tmp, 'index.html');
+    if (fs.existsSync(rootIdx) && !fs.readFileSync(rootIdx, 'utf8').includes(LINK_MARK)) {
+      for (const e of fs.readdirSync(tmp)) if (!['.git', 'prototype', 'storybook'].includes(e)) fs.rmSync(path.join(tmp, e), { recursive: true, force: true });
+    }
     const target = path.join(tmp, subdir);
     fs.rmSync(target, { recursive: true, force: true });
     fs.cpSync(dist, target, { recursive: true });
     const parts = ['prototype', 'storybook'].filter((p) => fs.existsSync(path.join(tmp, p)));
-    const idx = path.join(tmp, 'index.html');
-    const prev = fs.existsSync(idx) ? fs.readFileSync(idx, 'utf8') : '';
-    if (!prev || prev.includes(LINK_MARK)) fs.writeFileSync(idx, linkPage(title || repo.split('/')[1], parts));
+    fs.writeFileSync(rootIdx, linkPage(title || repo.split('/')[1], parts));
     fs.writeFileSync(path.join(tmp, '.nojekyll'), '');
     run('git', ['-C', tmp, 'add', '-A']);
     let changed = true;

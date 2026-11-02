@@ -435,3 +435,17 @@ test("comments: the public Supabase pair travels with the project; a secret key 
   const bad = tmpProject({ comments: { supabase_url: "https://abc.supabase.co", anon_key: jwt("service_role") } });
   assert.equal(pr.publicSupabase(bad, empty).anonKey, null);
 });
+
+test("pages: an older single-site publish at the root gives way to the link page; the other part stays", () => {
+  const dist = fs.mkdtempSync(path.join(os.tmpdir(), "atomica-test-dist-"));
+  fs.writeFileSync(path.join(dist, "index.html"), "<p>sb</p>");
+  let left = null;
+  const run = (cmd, args) => {
+    if (args[0] === "clone") { const t = args[args.length - 1]; fs.mkdirSync(path.join(t, "prototype"), { recursive: true }); fs.writeFileSync(path.join(t, "prototype", "index.html"), "p"); fs.writeFileSync(path.join(t, "index.html"), "<html>old storybook</html>"); fs.writeFileSync(path.join(t, "iframe.html"), "x"); return ""; }
+    if (args.includes("add")) left = { names: fs.readdirSync(args[1]).sort(), root: fs.readFileSync(path.join(args[1], "index.html"), "utf8") };
+    return "";
+  };
+  pr.pushPages({ repo: "acme/shop", subdir: "storybook", dist, run });
+  assert.deepEqual(left.names, [".nojekyll", "index.html", "prototype", "storybook"]);
+  assert.ok(left.root.includes(pr.LINK_MARK));
+});
