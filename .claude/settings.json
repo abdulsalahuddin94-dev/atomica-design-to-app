@@ -101,6 +101,15 @@
             "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" guard_figma"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" figma_focus"
+          }
+        ]
       }
     ],
     "PostToolUse": [
