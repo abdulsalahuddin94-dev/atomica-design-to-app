@@ -39,6 +39,7 @@ If the file belongs to a project in `My Projects/` (its key or exact name is in 
 4. Build fresh from variables and styles. **Captured frames are a reference only:** never turn captured layers into the component (they hold raw hex, px and fonts, default names and no Auto Layout).
 5. Naming, component properties, Auto Layout, meaningful layer names, icon swap properties and the Figma description (Purpose, Usage Rules, Accessibility) follow the platform Main Skill.
 6. `ds-auditor`: audit plus screenshots of every variant in Light and Dark. Fix what it finds.
+   When the source runs (a live site, or code run locally) and the task builds or changes a screen, popup or component from it, the measured fidelity check of `steps/screens.md` 7f step 4b also runs (`tools/source_dump.js`, `tools/figma_text_dump.figma.js`, `tools/fidelity_diff.py`): Open differences 0 or each one explained; screens never below 1440 x 900 (Desktop) or 375 x 812 (Mobile).
 7. Show the result as `Ready for review` with the screenshots and audit numbers. Only the user approves. Then Ask (choice): "Approve (Recommended)" / "Request changes". If the file is a published library, ask to publish (Ask (choice): "Done" / "Not yet") and say which files need Accept updates.
 
 **Audit only**
