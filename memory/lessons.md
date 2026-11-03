@@ -4,6 +4,11 @@ Every mistake Abdul reports or a check finds gets one entry here in the session 
 
 Teammates share their lessons through `/contribute` (`CONTRIBUTING.md`); an entry lands here only after Abdul accepts it, marked `(contributed by <login>)`.
 
+## Screens did not match the running source; frames under 900 high (2026-11-03)
+1. **Each code-to-Figma sync left color, shape and size differences (Abdul).** Abdul had to send screenshots after every build to point them out.
+   Cause: the comparison was a screenshot next to the source, judged by eye at reduced scale; 12 vs 14 px text, 500 vs 600 weight, 16 vs 20 radius and line-height drift do not show at that scale, and values with no exact variable were snapped to the nearest one without saying so. The first measured run on one profile screen found 71 differences the eye check had passed. Rule: measured fidelity (screens.md 7f step 4b): dump the running source and the Figma frame, run `tools/fidelity_diff.py`, fix until Open differences is 0 or explained; list unmatched exact values for approval. Check: no screen is reported without its `audits/<date>-fidelity-<screen>.md`.
+2. **Desktop screens were 1440 x 776 and 1440 x 880.** Cause: the screen-fitting helper used in the build scripts hugged the content with an 880 minimum instead of the 900 floor, and older screens were never re-checked. Rule: helpers take the floor from section 7d (Desktop height at least 900, Mobile 375 x 812); after any re-layout run `tools/check_screens.figma.js` (`frameSize`). Check: ds-auditor screens mode reports every frame under the floor.
+
 ## Dashboard select lists in dark mode (2026-10-15)
 1. **The Tool and Model lists could not be read (Abdul).** In dark mode the open lists under the message box showed light grey text on a white list.
    Cause: the select was transparent (`background:none`) with the theme's light text; Windows draws an open native list with the select's background, so it fell back to white while the options kept the light text. Headless screenshots never show an open native list, so the check missed it. Rule: every `select option` gets the theme's background and text color explicitly. Check: read the computed `color` and `background-color` of an `option` in Dark mode (both must come from the theme), not only a screenshot.
