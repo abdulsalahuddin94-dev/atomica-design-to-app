@@ -26,7 +26,7 @@ Show the 20 categories with their counts from `styles.json > categories` in one 
 
 ## 0.3e.3 Style
 
-Show every style of the chosen category in the message (name and one-line description, "inspired by a brand" marked), then Ask (choice): "Which style?" with the **3 best-fitting styles** of that category (description = its one-line `description`, plus "Inspired by a brand" when `inspired_by_brand`) + "Back". Any other style of the list is typed in Other (its name or slug).
+Show every style of the chosen category in the message (name and one-line description, "inspired by a brand" marked), then Ask (choice): "Which style?" with the **3 best-fitting styles** of that category (description = its one-line `description`, plus "Inspired by a brand" when `inspired_by_brand`) + "Back". Any other style of the list is typed in Other (its name or slug). Each style option carries a `preview` with its main colors and font (`Colors: ...`, `Font: ...`, SKILL.md section 0 Previews), read from its `DESIGN.md`, so the dashboard shows the look before the pick.
 
 ## 0.3e.4 Read the style and map it to our layers
 
@@ -49,9 +49,9 @@ Read `Style_Library/<slug>/DESIGN.md` once and turn it into prefilled answers. N
 
 ## 0.3e.6 Confirm and record
 
-Merge the style's answers into the 0.3c list (0.3c runs right after this file): one list with each answer and its source (`from Style_Library/<slug>` or `from Inputs/<file>`; brand files win over the style on brand color and fonts), then the same one Ask (choice): "Use these answers?" "Use these (Recommended)" / "Change something" (description: I ask those questions one by one) / "Back". Questions still unanswered are asked as usual.
+Merge the style's answers into the 0.3c list (0.3c runs right after this file): one list with each answer and its source (`from Style_Library/<slug>` or `from Inputs/<file>`; brand files win over the style on brand color and fonts), and those answers go into the 0.3s setup card (SKILL.md) with the recommended answers for everything else, under its one "Use all of these" question. The card's preview shows the style's main colors and its font (Previews format, SKILL.md section 0).
 
-Record after "Use these":
+Record after "Use all of these":
 - `Project_Brief.md > 0.3e`: "Style: <title> (<slug>, <category>), inspired by a brand: yes/no" (or "My brand files" / "No style") and each prefilled answer with its source.
 - `status.json > style` = `{"slug", "title", "category", "inspired_by_brand", "file": "Style_Library/<slug>/DESIGN.md", "source": "intake" | "dashboard"}`.
 - The Intake Summary's Direction line starts with `Style: <title>` (and "inspired by" for brand styles).
