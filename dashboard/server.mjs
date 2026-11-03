@@ -296,6 +296,8 @@ function getSettings() {
     models: { ...(saved.models || {}) },
     // The Claude model picked last in a conversation; new conversations start on it (empty = Claude Code's default).
     claudeModel: typeof saved.claudeModel === "string" ? saved.claudeModel : "",
+    // Keep the computer awake while the dashboard runs (see keepAwake below). Off unless the user turns it on.
+    keepAwake: saved.keepAwake === true,
   };
 }
 function setSettings(body) {
@@ -303,14 +305,54 @@ function setSettings(body) {
   if (MODES.includes(body.permissionMode)) next.permissionMode = body.permissionMode;
   if (typeof body.claudeModel === "string" && /^[\w.:\[\]-]{0,80}$/.test(body.claudeModel)) next.claudeModel = body.claudeModel;
   if ([...RUNNABLE, "ask"].includes(body.fallbackTool)) next.fallbackTool = body.fallbackTool;
+  if (typeof body.keepAwake === "boolean") next.keepAwake = body.keepAwake;
   if (body.models && typeof body.models === "object") {
     for (const [k, v] of Object.entries(body.models)) if (RUNNABLE.includes(k)) next.models[k] = String(v || "").trim().slice(0, 80);
   }
   fs.mkdirSync(STATE, { recursive: true });
   fs.writeFileSync(SETTINGS, JSON.stringify(next, null, 2));
   for (const s of sessions.values()) if (!s.ended) s.query?.setPermissionMode(next.permissionMode).catch(() => {});
-  return next;
+  keepAwake(next.keepAwake);
+  return { ...next, awake: awakeState() };
 }
+
+// ---------- keep awake ----------
+// While on, the computer does not go to sleep, so a long build, a usage-limit wait or an overnight resume is not cut
+// off. The screen may still turn off and lock; Figma keeps working behind it. A small helper process holds the
+// request and ends with the dashboard (it watches this process), so sleep comes back as soon as the dashboard closes.
+// Windows: SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED). macOS: caffeinate -i.
+let awake = null;
+let awakeError = "";
+function keepAwake(on) {
+  if (!on) { if (awake) { try { awake.kill(); } catch {} awake = null; } return; }
+  if (awake && awake.exitCode === null) return;
+  awakeError = "";
+  let cmd, args;
+  if (process.platform === "win32") {
+    const ps = [
+      "Add-Type -Namespace Atomica -Name Power -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint f);'",
+      "if ([Atomica.Power]::SetThreadExecutionState([uint32]2147483649) -eq 0) { exit 3 }",
+      `Wait-Process -Id ${process.pid}`,
+    ].join("; ");
+    cmd = "powershell.exe";
+    args = ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")];
+  } else if (process.platform === "darwin") {
+    cmd = "caffeinate"; args = ["-i", "-w", String(process.pid)];
+  } else { awakeError = "Keep awake works on Windows and macOS only."; return; }
+  try {
+    awake = spawn(cmd, args, { stdio: "ignore", windowsHide: true });
+    const child = awake;
+    child.on("error", (e) => { awakeError = String(e.message || e); if (awake === child) awake = null; });
+    child.on("exit", (code) => {
+      if (awake !== child) return;
+      awake = null;
+      if (code) awakeError = "The computer did not accept the keep-awake request.";
+    });
+  } catch (e) { awakeError = String(e.message || e); awake = null; }
+}
+const awakeState = () => ({ on: !!(awake && awake.exitCode === null), error: awakeError });
+keepAwake(getSettings().keepAwake);
+process.on("exit", () => { if (awake) try { awake.kill(); } catch {} });
 const modeFlag = (mode) => `--permission-mode ${mode === "default" ? "manual" : mode}`;
 
 const sessions = new Map(); // id -> session
@@ -1229,7 +1271,7 @@ const server = http.createServer(async (req, res) => {
     const sm = req.method === "GET" && p.match(/^\/api\/styles\/([a-z0-9-]+)$/);
     if (sm) { const s = readStyle(sm[1]); return send(res, s ? 200 : 404, s || { error: "Style not found" }); }
     if (req.method === "POST" && p === "/api/workflow/update") return send(res, 200, updateWorkflow());
-    if (req.method === "GET" && p === "/api/settings") return send(res, 200, getSettings());
+    if (req.method === "GET" && p === "/api/settings") return send(res, 200, { ...getSettings(), awake: awakeState() });
     if (req.method === "POST" && p === "/api/settings") { const b = await readBody(req); return send(res, 200, setSettings(b)); }
     if (req.method === "GET" && p === "/api/tools") return send(res, 200, { tools: toolStatus(url.searchParams.get("fresh") === "1", () => authStatus(false)), settings: getSettings() });
     if (req.method === "GET" && p === "/api/usage") return send(res, 200, usage.summary());

@@ -161,6 +161,7 @@ async function renderSettings() {
   app.replaceChildren($("#tpl-settings").content.cloneNode(true));
   $("#s-refresh").addEventListener("click", () => loadTools(true));
   loadTools(false);
+  loadAwake();
   loadUsage();
   loadIntegrations();
 }
@@ -174,6 +175,25 @@ async function loadTools(fresh) {
   pick.value = data.settings.fallbackTool;
   pick.onchange = () => api("/api/settings", { fallbackTool: pick.value }).catch(showError);
   list.replaceChildren(...data.tools.map((t) => toolCard(t, data.settings)));
+}
+
+async function loadAwake() {
+  const pick = $("#s-awake-pick");
+  const show = (st) => {
+    if (!$("#s-awake-pick")) return;
+    pick.checked = !!st.keepAwake;
+    const err = st.keepAwake && st.awake && !st.awake.on ? st.awake.error || "Keep awake could not start on this computer." : "";
+    $("#s-awake-note").classList.toggle("warn-text", !!err);
+    if (err) $("#s-awake-note").textContent = err;
+  };
+  try { show(await api("/api/settings")); } catch (e) { showError(e); }
+  pick.onchange = async () => {
+    try {
+      const st = await api("/api/settings", { keepAwake: pick.checked });
+      show(st);
+      toast(st.keepAwake ? (st.awake?.on ? "This computer stays awake while the dashboard runs." : "Keep awake could not start.") : "Normal sleep is back.");
+    } catch (e) { pick.checked = !pick.checked; showError(e); }
+  };
 }
 
 function toolCard(t, settings) {
