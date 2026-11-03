@@ -21,7 +21,7 @@ Photos are stock photos from **Unsplash**, free for commercial use (Unsplash Lic
 
 ## 7i.3 Put it in Figma
 
-- The image goes on the image layer of an instance (an image slot, or a rectangle or frame named after its role: `Hero Image`, `Card Image`, `Avatar Image`). It never goes on the screen frame, and never as a loose node.
+- The image goes on the image layer of an instance (an image slot, a rectangle or frame named after its role: `Hero Image`, `Card Image`, `Avatar Image`, or the instance itself when its own fill is the image, like an Avatar). It never goes on the screen frame, and never as a loose node.
 - `node tools/place_image.cjs <file> --file-key <key> --node "<node id>" --name "Hero Image" --credit "<credit from credits.json>"`, then run the printed FigCli `eval --file` command with the file's `FIGMA_FILE` (file check first, `steps/figma-files.md`). Use the node id: a layer name works only when it is unique on the page. Fit: `fill` (default, crops to the frame), `fit` for product shots on a plain background.
 - Desktop Bridge only: run the same script through `figma_execute`.
 - Overlay text on a photo keeps its contrast through the DS scrim or overlay token, never a raw dark layer (Accessibility floors, decisions.md).

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Writes a FigCli (Yolo) eval script that puts an image file as the fill of one frame or rectangle
-// (Design_System_Intake_Skill/steps/images.md). The bytes go inside the script (figma.createImage), so no
+// or instance (Design_System_Intake_Skill/steps/images.md). The bytes go inside the script (figma.createImage), so no
 // network access is needed inside Figma. Run the printed command; it changes only that node.
 //   node tools/place_image.cjs <image.jpg|png> --file-key <key> --node "<node id or exact layer name>"
 //        [--name "Hero Image"] [--credit "Photo by ... on Unsplash"] [--fit fill|fit|crop]
@@ -31,13 +31,13 @@ if (!n) {
   if (found.length !== 1) return { error: found.length + ' layers named "' + target + '" on page ' + figma.currentPage.name + '; pass the node id instead' };
   n = found[0];
 }
-if (!('fills' in n) || !['FRAME', 'RECTANGLE', 'ELLIPSE', 'POLYGON'].includes(n.type)) return { error: n.name + ' is a ' + n.type + '; image fills go on a frame or rectangle (an instance image slot: pass the layer inside it)' };
+if (!('fills' in n) || !['FRAME', 'RECTANGLE', 'ELLIPSE', 'POLYGON', 'INSTANCE'].includes(n.type)) return { error: n.name + ' is a ' + n.type + '; image fills go on a frame, rectangle or instance' };
 const img = figma.createImage(figma.base64Decode(${JSON.stringify(bytes.toString('base64'))}));
 n.fills = [{ type: 'IMAGE', imageHash: img.hash, scaleMode: ${JSON.stringify(scaleMode)} }];
 ${layerName ? `n.name = ${JSON.stringify(layerName)};` : ''}
-n.setPluginData('imageSource', ${JSON.stringify(JSON.stringify({ file: path.basename(image), credit }))});
+let credited = true; try { n.setSharedPluginData('aiready', 'imageSource', ${JSON.stringify(JSON.stringify({ file: path.basename(image), credit }))}); } catch (e) { credited = false; }
 const size = await img.getSizeAsync();
-const check = { node: n.id, name: n.name, fill: n.fills[0].type, image: size.width + 'x' + size.height, frame: Math.round(n.width) + 'x' + Math.round(n.height) };
+const check = { node: n.id, name: n.name, fill: n.fills[0].type, image: size.width + 'x' + size.height, frame: Math.round(n.width) + 'x' + Math.round(n.height), credited };
 return typeof DS !== 'undefined' && DS.readBack ? { ...check, readBack: await DS.readBack([n]) } : check;
 `;
 
