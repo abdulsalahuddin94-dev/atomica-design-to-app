@@ -119,6 +119,7 @@ Trials ran one session per project (470-650 turns, context up to 690K tokens, re
 | 6 (Scenario D) | `steps/code-to-design.md` | 2.1 = Code to Design |
 | 7 (Scenario C) | `steps/brownfield-3-scenario-c.md` | 2.2 = 3 |
 | 7g | `steps/single-file-ds.md` | 2.3 = the DS is inside the Design file |
+| 7i | `steps/images.md` | a screen, pattern or component example needs a photo (hero, card, avatar, background) |
 | 7h | `steps/app-icon.md` | building the ⭐Setup pages, ➜ App Icon missing from a DS file, or the user dropped an app icon |
 | 7b | `steps/fix-on-create.md` | a project starts from an existing file; last foundation step of a new build |
 | 7c | `steps/figma-files.md` | before the first Figma work of every session |
