@@ -2,7 +2,25 @@
 
 Part of `Design_System_Intake_Skill` (map in `SKILL.md` section 0c). Load when a screen, a pattern or a component example needs a photo: hero sections, cards, avatars, product shots, empty-state art, backgrounds (Abdul, 2026-11-03). Every `Ask (choice)` here also gets a "Back" option (`SKILL.md` section 0, Back on every menu).
 
-Photos are stock photos from **Unsplash**, free for commercial use (Unsplash License). Nobody needs a paid image tool.
+Nobody needs a paid image tool: the default is free stock photos from **Unsplash** (Unsplash License, commercial use allowed).
+
+## 7i.0 Where the images come from (asked once per project)
+
+The first time a project needs an image (Abdul, 2026-11-03), and only when `status.json > images.source` is empty, Ask (choice) "Your screens need photos. Where should they come from?":
+- "Unsplash, free stock photos (Recommended)" (description: I search by subject and add the photographer's credit; a free key gives real search, see 7i.2)
+- "My own images" (description: your image folder or Figma image library, or an image generator you connected as an MCP)
+- "Placeholders, I'll add the photos myself" (description: empty image frames with the right size and name, listed for you to fill)
+- "Back"
+
+"My own images" -> Ask (choice) "Which one?":
+- "An image folder or Figma library" (description: type the folder path or the Figma file name in Other)
+- "An image generator (MCP)" (description: one already connected in Claude Code)
+- "Back"
+
+- **Folder or library:** use only the files the user's source holds. For a Figma library, export the chosen image from that file and place it like any other file (7i.3). Credits: `Source: <folder or file name>`.
+- **Image generator:** list the connected MCP tools whose name or description says they generate images (`generate_image`, `create_image`...). None -> say so in one line and ask the first question again. Generated images are saved to `assets/images/` and placed with 7i.3; credits: `Source: <tool> (generated)`. Never script a consumer app or website to get images (terms, fragile).
+- **Placeholders:** every image slot keeps the DS empty look: its DS surface fill and an image icon instance from the icon set. The layer is named `<Role> Image Placeholder` and sized to the slot (7i.1). Each one is listed in the checkpoint to-do as "Add a photo: <screen> > <layer>". The screens audit does not flag these placeholders.
+- Saved in `status.json > images.source` (`unsplash` / `folder:<path>` / `figma:<file>` / `mcp:<tool>` / `placeholders`) and the Project_Brief, so later sessions never ask again. The user can change it any time ("use Unsplash now").
 
 ## 7i.1 Which image
 
@@ -11,7 +29,7 @@ Photos are stock photos from **Unsplash**, free for commercial use (Unsplash Lic
 - **Size:** the slot's frame size. Desktop hero 1440 x 900, Mobile hero 375 x 812 or the section height, cards and avatars their frame size.
 - **People and brands:** no logos, readable text or recognizable brands in a photo, and no photo that suggests a real person endorses the product.
 
-## 7i.2 Get the photo
+## 7i.2 Get the photo (source = Unsplash)
 
 `node tools/stock_image.cjs "<query>" --size <w>x<h> --count 3 --name <slot> --out "My Projects/<Project>/assets/images"`
 
