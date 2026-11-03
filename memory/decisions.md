@@ -95,6 +95,9 @@ updated: 2026-09-30
 ## Reference fidelity over platform rules (Abdul, 2026-10-13)
 - Brownfield, Scenario C and Code to Design: when the source (screenshots, frames, the live app or code) differs from the platform guideline (Material 3, Apple HIG, Tailwind defaults), **match the source exactly**: icon and glyph sizes, control heights, spacing, colors, shapes. Platform rules are the default only where the source does not show the answer. Accessibility floors stay (48 dp / 44 pt touch target, contrast), kept through the hit area or a nearby token, never by changing what the source shows. A gap between the source and the DS is fixed in the DS (a variant, a property, an override on the component) so the screen still uses DS instances; it is never left as an "accepted platform difference". Rule: Design_System_Intake_Skill/steps/screens.md 7f.3.
 
+## Measured fidelity (Abdul, 2026-11-03)
+- Every pull from a running source (GitHub code run locally, a live app) into Figma had small color, shape and size differences that Abdul found by eye and sent as screenshots. Now each screen gets a measured check: `tools/source_dump.js` in the running source (same width, shell state, mode and data record as the Figma screen), `tools/figma_text_dump.figma.js` on the frame, `tools/fidelity_diff.py` report in `audits/`; Open differences must be 0 or explained before the screen is reported. Values with no matching variable are listed for approval, never silently snapped to the nearest. Screen frames are never below 1440 x 900 (Desktop) or 375 x 812 (Mobile); helper scripts and the audit enforce the floor. Rule: Design_System_Intake_Skill/steps/screens.md 7f step 4b.
+
 ## Radio vs Select (Abdul, 2026-09-30)
 - Radio groups hold 2 to 6 options; 7 or more use Select / Dropdown. Both component descriptions state the same number.
 
