@@ -79,7 +79,7 @@ Create a new `➜` page inside the matching group when no existing page fits, an
 7. **Documentation pages** linked to variables and styles (section 8).
 8. **Audit** (audit-design-system) + write the project skills (Foundation_Skill + Component_Skills per group).
 
-Before each component: state its tier, list dependencies, build missing lower tiers first.
+Before each component: state its tier, list dependencies, build missing lower tiers first. **Then ask before building it** (Design_System_Intake_Skill section 8, "Per-component confirmation inside Components", contributed by EmG38, 2026-10-20): show the variant/state table it will produce and get an Ask (choice) approval before writing it to Figma — one component per approval, never batched. The same applies to each Primitive ramp and token table in section 3 below ("Per-table confirmation inside Foundation").
 
 ## 3. Token architecture
 

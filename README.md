@@ -2,6 +2,11 @@
 
 Skills that let Claude Code build, audit and scale AI-ready design systems in Figma for Web, iOS and Android: strictly tokenized, componentized and documented so AI agents can build UIs from them.
 
+## Meet Atomica
+A 1:40 intro to the product (with sound).
+
+https://github.com/user-attachments/assets/9c5983ea-5297-472f-88c4-1dd1820ee239
+
 
 > **Live Storybook:** the design system runs in Storybook (the default Web reference's Storybook, folder in `references.json`). See [Storybook for the team](#storybook-for-the-team-run-it-on-your-machine) to run it in two commands.
 ## What is inside

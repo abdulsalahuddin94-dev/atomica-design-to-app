@@ -5,6 +5,9 @@ Usage (from the Root):
   python tools/new_foundation.py "My Projects/<Project>" --brand "#299B48" --modes Dark --check-only
 Options:
   --modes Light,Dark | Light | Dark     Semantic modes (intake 0.4); single-mode systems get one mode.
+  --fill-step 600                        Light mode: brand step for filled buttons and bg/brand (default 700);
+                                         hover and active take the next two darker steps. Use it when the
+                                         approved direction keeps the brand color itself on filled buttons.
   --check-only                          only print the brand contrast pre-check (intake 3.3), write nothing.
 
 Writes <folder>/data/source/foundation-spec.json (used by the Figma build scripts) and prints every failure.
@@ -164,6 +167,7 @@ def main():
     ap.add_argument('--brand', required=True)
     ap.add_argument('--modes', default='Light,Dark')
     ap.add_argument('--check-only', action='store_true')
+    ap.add_argument('--fill-step', default=None, help='Light mode brand fill step (default 700)')
     a = ap.parse_args()
     modes = [m.strip().capitalize() for m in a.modes.split(',') if m.strip()]
     bad = [m for m in modes if m not in SEMANTIC]
@@ -176,6 +180,15 @@ def main():
         print('  vs %-28s %5.2f:1  %s' % (name, c, verdict))
     if a.check_only:
         return 0
+
+    if a.fill_step and 'Light' in SEMANTIC:
+        i = STEPS.index(a.fill_step)
+        if i + 2 >= len(STEPS):
+            raise SystemExit('--fill-step %s leaves no darker hover/active steps' % a.fill_step)
+        f, h, x = ('brand/' + STEPS[i + k] for k in range(3))
+        L = SEMANTIC['Light']
+        L['bg'].update({'brand': f, 'brand-hover': h, 'brand-active': x})
+        L['action'].update({'primary/bg': f, 'primary/bg-hover': h, 'primary/bg-active': x, 'primary/border': f})
 
     ramps = {'gray': ramp_from('slate'), 'brand': ramp_from('green', brand), 'green': ramp_from('emerald'),
              'red': ramp_from('red'), 'yellow': ramp_from('amber'), 'blue': ramp_from('blue')}
@@ -224,6 +237,12 @@ def main():
     print('brand ramp (base step %s):' % ramps['brand']['base_step'],
           ' '.join(ramps['brand']['values'][s] for s in STEPS))
     print('config.json > ramp.base_steps: {"brand": "%s"}' % ramps['brand']['base_step'])
+    if 'Light' in modes:
+        fill = SEMANTIC['Light']['action']['primary/bg'].split('/')[1]
+        base = ramps['brand']['base_step']
+        if fill != base and d.contrast(ramps['brand']['values'][base], '#FFFFFF') >= 4.5:
+            print('NOTE: filled buttons use brand/%s, but the brand color itself (brand/%s) passes white text; '
+                  'add --fill-step %s if the direction keeps the brand color on buttons' % (fill, base, base))
     print('contrast pairs %d, failing %d' % (len(results), len(fails)))
     for r in fails:
         print('  FAIL [%s] %s on %s %.2f < %s' % (r['mode'], r['fg'], r['bg'], r['ratio'], r['min']))

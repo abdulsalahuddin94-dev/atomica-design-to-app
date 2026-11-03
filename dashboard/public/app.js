@@ -143,7 +143,7 @@ function route() {
   for (const a of document.querySelectorAll("[data-nav]")) a.classList.toggle("on", a.dataset.nav === page);
   // Inside a project the conversation gets the whole width: the app sidebar steps aside.
   document.body.classList.toggle("focus", page === "chat");
-  if (current?.es) { current.es.close(); current = null; }
+  if (current?.es) { current.es.close(); current.cleanup?.(); current = null; }
   if (page === "chat") renderChat(m[1]); else if (page === "settings") renderSettings(); else if (page === "projects") renderProjects(); else if (page === "styles") renderStyles(); else renderHome();
 }
 
@@ -159,6 +159,7 @@ async function renderSettings() {
   app.replaceChildren($("#tpl-settings").content.cloneNode(true));
   $("#s-refresh").addEventListener("click", () => loadTools(true));
   loadTools(false);
+  loadAwake();
   loadUsage();
   loadIntegrations();
 }
@@ -172,6 +173,25 @@ async function loadTools(fresh) {
   pick.value = data.settings.fallbackTool;
   pick.onchange = () => api("/api/settings", { fallbackTool: pick.value }).catch(showError);
   list.replaceChildren(...data.tools.map((t) => toolCard(t, data.settings)));
+}
+
+async function loadAwake() {
+  const pick = $("#s-awake-pick");
+  const show = (st) => {
+    if (!$("#s-awake-pick")) return;
+    pick.checked = !!st.keepAwake;
+    const err = st.keepAwake && st.awake && !st.awake.on ? st.awake.error || "Keep awake could not start on this computer." : "";
+    $("#s-awake-note").classList.toggle("warn-text", !!err);
+    if (err) $("#s-awake-note").textContent = err;
+  };
+  try { show(await api("/api/settings")); } catch (e) { showError(e); }
+  pick.onchange = async () => {
+    try {
+      const st = await api("/api/settings", { keepAwake: pick.checked });
+      show(st);
+      toast(st.keepAwake ? (st.awake?.on ? "This computer stays awake while the dashboard runs." : "Keep awake could not start.") : "Normal sleep is back.");
+    } catch (e) { pick.checked = !pick.checked; showError(e); }
+  };
 }
 
 function toolCard(t, settings) {
@@ -790,22 +810,52 @@ function drawProjects() {
   )));
 }
 
+// Recent conversations: the first thing the user wrote is the title (several conversations of one project would
+// otherwise all read as the project name), with the project as a tag. Search and Show all reach the last 40.
+const recent = { rows: [], all: false, q: "" };
 async function loadRecent() {
   try {
     const { live, past } = await api("/api/sessions");
     setTally("live", live.length);
-    const rows = [...live.map((s) => ({ ...s, live: true })), ...past].slice(0, 8);
-    if (!rows.length || !$("#recent-wrap")) return;
-    $("#recent-wrap").hidden = false;
-    $("#recent-list").replaceChildren(...rows.map((r) => el("li", {},
-      el("time", {}, ago(r.updated || r.started)),
-      el("span", { class: "dot" + (r.live ? " live" : ""), title: r.live ? "Running" : "Finished" }),
-      el("span", { class: "title", dir: "auto", title: r.title || "Conversation" }, r.title || "Conversation"),
+    recent.rows = [...live.map((s) => ({ ...s, live: true })), ...past];
+    if (!$("#recent-wrap")) return;
+    $("#recent-wrap").hidden = !recent.rows.length;
+    const search = $("#recent-search");
+    search.hidden = recent.rows.length <= 8;
+    search.oninput = () => { recent.q = search.value.trim().toLowerCase(); drawRecent(); };
+    drawRecent();
+  } catch {}
+}
+function drawRecent() {
+  const list = $("#recent-list");
+  if (!list) return;
+  const label = (r) => r.preview || (r.project && r.title === r.project ? "Project work" : r.title) || "Conversation";
+  const match = (r) => !recent.q || `${label(r)} ${r.project || ""} ${r.title || ""}`.toLowerCase().includes(recent.q);
+  const found = recent.rows.filter(match);
+  const rows = recent.all || recent.q ? found : found.slice(0, 8);
+  const hide = async (r) => {
+    try {
+      await api("/api/sessions/hide", { claudeSessionId: r.claudeSessionId });
+      loadRecent();
+      toast("Removed from the list. Claude still has the conversation.", { label: "Undo", icon: "i-undo", run: () => api("/api/sessions/hide", { claudeSessionId: r.claudeSessionId, hidden: false }).then(loadRecent).catch(showError) });
+    } catch (e) { showError(e); }
+  };
+  list.replaceChildren(...(rows.length ? rows.map((r) => el("li", {},
+    el("time", { title: new Date(r.updated || r.started).toLocaleString() }, ago(r.updated || r.started)),
+    el("span", { class: "dot" + (r.live ? " live" : ""), title: r.live ? "Running" : "Finished" }),
+    el("span", { class: "title" },
+      r.project ? el("span", { class: "proj" }, r.project.replace(/_/g, " ")) : null,
+      el("span", { class: "text", dir: "auto", title: label(r) }, label(r))),
+    el("span", { class: "row-actions" },
       r.live
         ? el("button", { class: "ghost", type: "button", onclick: () => { location.hash = `#/chat/${r.id}`; } }, "Open")
         : el("button", { class: "ghost", type: "button", onclick: () => start({ resume: r.claudeSessionId, project: r.project, title: r.title }).catch(showError) }, "Continue"),
-    )));
-  } catch {}
+      r.live ? null : el("button", { class: "icon-btn", type: "button", title: "Remove from the list", "aria-label": "Remove from the list", onclick: () => hide(r) }, icon("i-x"))),
+  )) : [el("li", { class: "empty" }, el("span", { class: "note" }, "No conversation matches."))]));
+  const more = $("#recent-more");
+  more.hidden = !!recent.q || found.length <= 8;
+  more.textContent = recent.all ? "Show fewer" : `Show all ${found.length}`;
+  more.onclick = () => { recent.all = !recent.all; drawRecent(); };
 }
 
 function showError(e) {
@@ -839,7 +889,69 @@ function renderChat(id) {
 
   const scroll = () => { log.scrollTop = log.scrollHeight; };
   const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 160;
-  const add = (node) => { const stick = nearBottom(); removeTyping(); log.append(node); if (stick) scroll(); updateTyping(); return node; };
+  // Jump to latest: shown while the user reads further up, with how many messages arrived meanwhile.
+  const jump = $("#jump");
+  let unread = 0;
+  const syncJump = () => {
+    const away = !nearBottom();
+    if (!away) unread = 0;
+    jump.hidden = !away;
+    jump.querySelector("span").textContent = unread ? `${unread} new` : "Latest";
+    jump.style.bottom = `${$("#composer").offsetHeight + 12}px`;
+  };
+  jump.addEventListener("click", () => { log.scrollTo({ top: log.scrollHeight, behavior: "smooth" }); unread = 0; });
+  log.addEventListener("scroll", syncJump, { passive: true });
+  const add = (node) => {
+    const stick = nearBottom(); removeTyping(); log.append(node);
+    if (stick) scroll(); else if (node.classList?.contains("msg") || node.classList?.contains("qcard") || node.classList?.contains("pcard")) unread++;
+    updateTyping(); syncJump(); return node;
+  };
+  // A line with the date and time when more than 30 minutes passed between messages (continued conversations).
+  let lastAt = 0;
+  const stamp = (at) => {
+    if (at && lastAt && at - lastAt > 30 * 60000) add(el("div", { class: "sys time-sep" }, new Date(at).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })));
+    if (at) lastAt = at;
+  };
+  const timeTitle = (at) => at ? new Date(at).toLocaleString() : null;
+  // Copy buttons: one per Claude reply (its Markdown) and one per code block.
+  const copyBtn = (get, label = "Copy") => el("button", { type: "button", class: "copy", title: label, "aria-label": label, onclick: async (ev) => {
+    ev.stopPropagation();
+    const b = ev.currentTarget;
+    const text = get();
+    let ok = false;
+    // Some embedded browsers leave the clipboard call waiting for a permission that never comes: give up after 1 s.
+    try { await Promise.race([navigator.clipboard.writeText(text), new Promise((_, no) => setTimeout(no, 1000))]); ok = true; } catch {
+      // Older or locked-down browsers: copy through a hidden text box.
+      const t = el("textarea", { style: "position:fixed;opacity:0;pointer-events:none" });
+      t.value = text; document.body.append(t); t.select();
+      try { ok = document.execCommand("copy"); } catch {}
+      t.remove();
+    }
+    if (ok) { b.classList.add("done"); setTimeout(() => b.classList.remove("done"), 1400); } else toast("Could not copy. Select the text instead.");
+  } }, icon("i-copy"), icon("i-check", "ic ok"));
+  const finishReply = (node, raw) => {
+    node.dataset.raw = raw;
+    for (const pre of node.querySelectorAll("pre")) pre.append(copyBtn(() => pre.querySelector("code")?.textContent || pre.textContent, "Copy code"));
+    node.append(el("div", { class: "msg-foot" }, copyBtn(() => node.dataset.raw, "Copy reply")));
+    return node;
+  };
+  // Folds long rows of tool steps: the newest 5 stay visible, the earlier ones open with one click.
+  const foldTools = (row) => {
+    const chips = [...row.querySelectorAll(".t")];
+    let btn = row.querySelector(".more");
+    if (row.dataset.open || chips.length <= 6) { btn?.remove(); chips.forEach((c) => { c.hidden = false; }); return; }
+    chips.forEach((c, i) => { c.hidden = i < chips.length - 5; });
+    if (!btn) btn = el("button", { type: "button", class: "more", onclick: () => { row.dataset.open = "1"; foldTools(row); } });
+    btn.textContent = `+${chips.length - 5} earlier steps`;
+    row.prepend(btn);
+  };
+  // Browser tab title: says when Claude needs an answer or finished while you were in another tab.
+  const openedAt = Date.now();
+  const baseTitle = "Atomica";
+  const attention = (text, at) => { if (document.hidden && (at || 0) >= openedAt) document.title = `${text} · ${baseTitle}`; };
+  const clearAttention = () => { if (!document.hidden) document.title = baseTitle; };
+  document.addEventListener("visibilitychange", clearAttention);
+  current.cleanup = () => { document.removeEventListener("visibilitychange", clearAttention); document.title = baseTitle; };
   let typing = null;
   const removeTyping = () => { typing?.remove(); typing = null; };
   const updateTyping = () => {
@@ -906,7 +1018,8 @@ function renderChat(id) {
       case "user":
         if (!state.firstPrompt) state.firstPrompt = e.text;
         state.toolRow = null; state.live = null; state.lastShots = []; state.shotRows = [];
-        add(el("div", { class: "msg user", dir: "auto" }, e.text, (e.images || []).map((src) => el("img", { src, alt: "Attached image" }))));
+        stamp(e.at);
+        add(el("div", { class: "msg user", dir: "auto", title: timeTitle(e.at) }, e.text, (e.images || []).map((src) => el("img", { src, alt: "Attached image" }))));
         break;
       case "delta":
         state.toolRow = null;
@@ -917,13 +1030,14 @@ function renderChat(id) {
         break;
       case "text":
         state.toolRow = null;
-        if (state.live && e.streamed) { state.live.innerHTML = markdown(e.text); state.live = null; }
-        else { state.live = null; add(el("div", { class: "msg claude" + (e.agent === "gemini" ? " gemini" : ""), dir: "auto", html: markdown(e.text) })); }
+        if (state.live && e.streamed) { state.live.innerHTML = markdown(e.text); state.live.title = timeTitle(e.at) || ""; finishReply(state.live, e.text); state.live = null; }
+        else { state.live = null; stamp(e.at); add(finishReply(el("div", { class: "msg claude" + (e.agent === "gemini" ? " gemini" : ""), dir: "auto", title: timeTitle(e.at), html: markdown(e.text) }), e.text)); }
         break;
       case "tool":
         state.live = null;
         if (!state.toolRow) state.toolRow = add(el("div", { class: "tools" }));
         state.toolRow.append(el("span", { class: "t" + (e.sub ? " sub" : ""), title: `${e.name} ${e.detail}` }, el("b", {}, e.name), e.detail ? ` ${e.detail}` : ""));
+        foldTools(state.toolRow);
         break;
       case "image": {
         state.toolRow = null;
@@ -937,6 +1051,7 @@ function renderChat(id) {
       }
       case "question": {
         state.pending.add(e.requestId);
+        attention("Waiting for your answer", e.at);
         const shots = state.lastShots.slice(-4);
         // The screenshots move into the approval card instead of showing twice.
         if (shots.length) for (const row of state.shotRows) row.remove();
@@ -946,6 +1061,7 @@ function renderChat(id) {
       }
       case "permission":
         state.pending.add(e.requestId);
+        attention("Waiting for your OK", e.at);
         state.toolRow = null; state.live = null;
         add(permissionCard(e));
         break;
@@ -961,6 +1077,7 @@ function renderChat(id) {
         break;
       case "result":
         state.toolRow = null; state.live = null;
+        attention(e.ok ? "Done" : "Stopped", e.at);
         if (!e.ok && e.error) add(el("div", { class: "sys err" }, e.error));
         break;
       case "error":
@@ -1191,7 +1308,15 @@ function renderChat(id) {
   input.addEventListener("paste", (ev) => { const files = [...(ev.clipboardData?.files || [])]; if (files.length) { ev.preventDefault(); addFiles(files); } });
   $("#composer").addEventListener("dragover", (ev) => ev.preventDefault());
   $("#composer").addEventListener("drop", (ev) => { ev.preventDefault(); addFiles(ev.dataTransfer.files); });
-  input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 200) + "px"; });
+  // Unsent text is kept per conversation, so leaving the page (or a reload) does not lose it.
+  const draftKey = `draft:${id}`;
+  const fit = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 200) + "px"; };
+  try { input.value = localStorage.getItem(draftKey) || ""; } catch {}
+  if (input.value) fit();
+  input.addEventListener("input", () => {
+    fit();
+    try { input.value ? localStorage.setItem(draftKey, input.value) : localStorage.removeItem(draftKey); } catch {}
+  });
   input.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); $("#composer").requestSubmit(); } });
 
   async function send(text) {
@@ -1205,6 +1330,7 @@ function renderChat(id) {
     ev.preventDefault();
     const text = input.value.trim();
     input.value = ""; input.style.height = "auto";
+    try { localStorage.removeItem(draftKey); } catch {}
     send(text);
   });
   $("#stop").addEventListener("click", () => api(`/api/sessions/${id}/stop`, {}).catch(showError));

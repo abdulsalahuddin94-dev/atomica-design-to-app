@@ -10,6 +10,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -282,6 +283,8 @@ function getSettings() {
     models: { ...(saved.models || {}) },
     // The Claude model picked last in a conversation; new conversations start on it (empty = Claude Code's default).
     claudeModel: typeof saved.claudeModel === "string" ? saved.claudeModel : "",
+    // Keep the computer awake while the dashboard runs (see keepAwake below). Off unless the user turns it on.
+    keepAwake: saved.keepAwake === true,
   };
 }
 function setSettings(body) {
@@ -289,14 +292,54 @@ function setSettings(body) {
   if (MODES.includes(body.permissionMode)) next.permissionMode = body.permissionMode;
   if (typeof body.claudeModel === "string" && /^[\w.:\[\]-]{0,80}$/.test(body.claudeModel)) next.claudeModel = body.claudeModel;
   if ([...RUNNABLE, "ask"].includes(body.fallbackTool)) next.fallbackTool = body.fallbackTool;
+  if (typeof body.keepAwake === "boolean") next.keepAwake = body.keepAwake;
   if (body.models && typeof body.models === "object") {
     for (const [k, v] of Object.entries(body.models)) if (RUNNABLE.includes(k)) next.models[k] = String(v || "").trim().slice(0, 80);
   }
   fs.mkdirSync(STATE, { recursive: true });
   fs.writeFileSync(SETTINGS, JSON.stringify(next, null, 2));
   for (const s of sessions.values()) if (!s.ended) s.query?.setPermissionMode(next.permissionMode).catch(() => {});
-  return next;
+  keepAwake(next.keepAwake);
+  return { ...next, awake: awakeState() };
 }
+
+// ---------- keep awake ----------
+// While on, the computer does not go to sleep, so a long build, a usage-limit wait or an overnight resume is not cut
+// off. The screen may still turn off and lock; Figma keeps working behind it. A small helper process holds the
+// request and ends with the dashboard (it watches this process), so sleep comes back as soon as the dashboard closes.
+// Windows: SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED). macOS: caffeinate -i.
+let awake = null;
+let awakeError = "";
+function keepAwake(on) {
+  if (!on) { if (awake) { try { awake.kill(); } catch {} awake = null; } return; }
+  if (awake && awake.exitCode === null) return;
+  awakeError = "";
+  let cmd, args;
+  if (process.platform === "win32") {
+    const ps = [
+      "Add-Type -Namespace Atomica -Name Power -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint f);'",
+      "if ([Atomica.Power]::SetThreadExecutionState([uint32]2147483649) -eq 0) { exit 3 }",
+      `Wait-Process -Id ${process.pid}`,
+    ].join("; ");
+    cmd = "powershell.exe";
+    args = ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(ps, "utf16le").toString("base64")];
+  } else if (process.platform === "darwin") {
+    cmd = "caffeinate"; args = ["-i", "-w", String(process.pid)];
+  } else { awakeError = "Keep awake works on Windows and macOS only."; return; }
+  try {
+    awake = spawn(cmd, args, { stdio: "ignore", windowsHide: true });
+    const child = awake;
+    child.on("error", (e) => { awakeError = String(e.message || e); if (awake === child) awake = null; });
+    child.on("exit", (code) => {
+      if (awake !== child) return;
+      awake = null;
+      if (code) awakeError = "The computer did not accept the keep-awake request.";
+    });
+  } catch (e) { awakeError = String(e.message || e); awake = null; }
+}
+const awakeState = () => ({ on: !!(awake && awake.exitCode === null), error: awakeError });
+keepAwake(getSettings().keepAwake);
+process.on("exit", () => { if (awake) try { awake.kill(); } catch {} });
 const modeFlag = (mode) => `--permission-mode ${mode === "default" ? "manual" : mode}`;
 
 const sessions = new Map(); // id -> session
@@ -304,11 +347,64 @@ const usage = usageStore(STATE);
 
 function saveHistory(s) {
   const all = readJson(HISTORY, []);
-  const row = { id: s.id, claudeSessionId: s.claudeSessionId, project: s.project, title: s.title, started: s.started, updated: Date.now() };
   // A continued conversation keeps one row (same Claude session), so the list never shows it twice.
-  const next = [row, ...all.filter((r) => r.id !== s.id && !(s.claudeSessionId && r.claudeSessionId === s.claudeSessionId))].slice(0, 40);
+  const same = (r) => r.id === s.id || (s.claudeSessionId && r.claudeSessionId === s.claudeSessionId);
+  const old = all.find(same);
+  // preview = the first thing the user wrote, so conversations of the same project can be told apart in the list.
+  const row = { id: s.id, claudeSessionId: s.claudeSessionId, project: s.project, title: s.title, preview: old?.preview || s.preview || "", started: old?.started || s.started, updated: Date.now() };
+  const next = [row, ...all.filter((r) => !same(r))].slice(0, 40);
   try { fs.mkdirSync(STATE, { recursive: true }); fs.writeFileSync(HISTORY, JSON.stringify(next, null, 2)); } catch {}
   pruneLogs(next);
+}
+
+// ---------- conversation titles ----------
+// The first thing the user typed names a conversation in the recent list. The dashboard's own start prompts are skipped
+// (every project conversation begins with the same one), so the title is what the user actually asked.
+const AUTO_PROMPT = /^Start the intake \(Design_System_Intake_Skill\)\./;
+const previewOf = (text) => {
+  const t = String(text || "").replace(/\s+/g, " ").trim();
+  return !t || AUTO_PROMPT.test(t) || t.startsWith("<") || t.startsWith("[Request interrupted") ? "" : t.slice(0, 160);
+};
+
+// Conversations saved before titles existed: read the first typed message from Claude Code's own transcript once.
+function transcriptPreview(claudeSessionId) {
+  if (!/^[\w-]{8,}$/.test(String(claudeSessionId || ""))) return "";
+  const base = path.join(os.homedir(), ".claude", "projects");
+  let dirs = [];
+  try { dirs = fs.readdirSync(base); } catch { return ""; }
+  for (const d of dirs) {
+    const file = path.join(base, d, `${claudeSessionId}.jsonl`);
+    let fd;
+    try { fd = fs.openSync(file, "r"); } catch { continue; }
+    try {
+      const buf = Buffer.alloc(2 * 1024 * 1024);
+      const n = fs.readSync(fd, buf, 0, buf.length, 0);
+      for (const line of buf.subarray(0, n).toString("utf8").split("\n")) {
+        if (!line.includes('"type":"user"')) continue;
+        let m;
+        try { m = JSON.parse(line); } catch { continue; }
+        if (m.type !== "user" || m.isSidechain || m.isMeta) continue;
+        const c = m.message?.content;
+        const text = typeof c === "string" ? c : Array.isArray(c) ? c.filter((x) => x.type === "text").map((x) => x.text).join(" ") : "";
+        const p = previewOf(text);
+        if (p) return p;
+      }
+    } finally { fs.closeSync(fd); }
+    return "";
+  }
+  return "";
+}
+
+function fillPreviews() {
+  const all = readJson(HISTORY, []);
+  let changed = false;
+  for (const r of all) {
+    if ((r.preview && previewOf(r.preview)) || (!r.preview && r.previewChecked) || !r.claudeSessionId) continue;
+    r.preview = transcriptPreview(r.claudeSessionId);
+    r.previewChecked = true;
+    changed = true;
+  }
+  if (changed) { try { fs.writeFileSync(HISTORY, JSON.stringify(all, null, 2)); } catch {} }
 }
 
 // ---------- saved conversation windows ----------
@@ -363,6 +459,7 @@ function emit(s, event) {
   s.log.push(event);
   if (s.log.length > 4000) s.log.splice(0, s.log.length - 4000);
   if (!SKIP_SAVE.has(event.type)) scheduleSave(s);
+  if (event.type === "user" && !s.preview) s.preview = previewOf(event.text);
   const line = `data: ${JSON.stringify(event)}\n\n`;
   for (const res of s.clients) res.write(line);
 }
@@ -507,6 +604,7 @@ function startSession({ prompt, project, title, images, resume }) {
     model: getSettings().claudeModel, limit: null, held: [], autoResume: true,
     agent: "claude", gemini: null, geminiNote: "",
   };
+  if (resume) s.preview = readJson(HISTORY, []).find((r) => r.claudeSessionId === resume)?.preview || "";
   sessions.set(id, s);
   runQuery(s, resume);
   if (prompt || (images && images.length)) {
@@ -1081,7 +1179,7 @@ function runInTerminal(cmd) {
 }
 
 function sessionSummary(s) {
-  return { id: s.id, project: s.project, title: s.title, started: s.started, busy: s.busy, ended: s.ended, live: true, claudeSessionId: s.claudeSessionId,
+  return { id: s.id, project: s.project, title: s.title, preview: s.preview || "", started: s.started, busy: s.busy, ended: s.ended, live: true, claudeSessionId: s.claudeSessionId,
     model: s.model || "", limit: s.limit, held: s.held.length, autoResume: s.autoResume, agent: s.agent };
 }
 
@@ -1138,7 +1236,7 @@ const server = http.createServer(async (req, res) => {
     const sm = req.method === "GET" && p.match(/^\/api\/styles\/([a-z0-9-]+)$/);
     if (sm) { const s = readStyle(sm[1]); return send(res, s ? 200 : 404, s || { error: "Style not found" }); }
     if (req.method === "POST" && p === "/api/workflow/update") return send(res, 200, updateWorkflow());
-    if (req.method === "GET" && p === "/api/settings") return send(res, 200, getSettings());
+    if (req.method === "GET" && p === "/api/settings") return send(res, 200, { ...getSettings(), awake: awakeState() });
     if (req.method === "POST" && p === "/api/settings") { const b = await readBody(req); return send(res, 200, setSettings(b)); }
     if (req.method === "GET" && p === "/api/tools") return send(res, 200, { tools: toolStatus(url.searchParams.get("fresh") === "1", () => authStatus(false)), settings: getSettings() });
     if (req.method === "GET" && p === "/api/usage") return send(res, 200, usage.summary());
@@ -1159,8 +1257,20 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && p === "/api/sessions") {
       const live = [...sessions.values()].map(sessionSummary);
       const liveIds = new Set(live.map((s) => s.id));
-      const past = readJson(HISTORY, []).filter((r) => !liveIds.has(r.id) && r.claudeSessionId);
+      fillPreviews();
+      const past = readJson(HISTORY, []).filter((r) => !liveIds.has(r.id) && r.claudeSessionId && !r.hidden);
       return send(res, 200, { live, past });
+    }
+    // Hide a past conversation from the recent list (Undo shows it again). Nothing is deleted: Claude Code keeps its
+    // transcript, and the row drops out with the oldest ones after 40 conversations.
+    if (req.method === "POST" && p === "/api/sessions/hide") {
+      const body = await readBody(req);
+      const all = readJson(HISTORY, []);
+      const row = all.find((r) => r.claudeSessionId && r.claudeSessionId === body.claudeSessionId);
+      if (!row) return send(res, 404, { error: "That conversation is not in the list." });
+      if (body.hidden === false) delete row.hidden; else row.hidden = true;
+      try { fs.writeFileSync(HISTORY, JSON.stringify(all, null, 2)); } catch {}
+      return send(res, 200, { ok: true });
     }
     if (req.method === "POST" && p === "/api/sessions") {
       const body = await readBody(req);

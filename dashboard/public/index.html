@@ -40,6 +40,9 @@
     <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
@@ -156,8 +159,12 @@
     </section>
 
     <section class="board-wrap" aria-labelledby="recent" id="recent-wrap" hidden>
-      <h2 id="recent" class="section-title">Recent conversations</h2>
+      <div class="recent-head">
+        <h2 id="recent" class="section-title">Recent conversations</h2>
+        <label class="search" id="recent-search-wrap"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="recent-search" placeholder="Search conversations" aria-label="Search conversations" dir="auto" hidden></label>
+      </div>
       <ul id="recent-list" class="board"></ul>
+      <button type="button" class="ghost recent-more" id="recent-more" hidden></button>
     </section>
 
     <section class="insights-wrap" aria-labelledby="insights" id="insights-wrap" hidden>
@@ -207,6 +214,7 @@
     </aside>
     <section class="chat" aria-label="Conversation">
       <div id="log" class="log" aria-live="polite"></div>
+      <button type="button" id="jump" class="jump" hidden><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg><span>Latest</span></button>
       <form id="composer" class="composer" autocomplete="off">
         <div id="attachments" class="attachments"></div>
         <div class="composer-row">
@@ -335,6 +343,14 @@
         <option value="codex">Continue with Codex</option>
         <option value="gemini">Continue with Gemini CLI</option>
       </select>
+    </section>
+
+    <section aria-labelledby="s-awake" class="sheet setting-row">
+      <div>
+        <h2 id="s-awake" class="row-title">Keep awake</h2>
+        <p class="muted small" id="s-awake-note">While the dashboard runs, this computer does not go to sleep, so a long build or a wait for the usage limit to reset is not cut off. The screen can still turn off. Sleep comes back when you close the dashboard.</p>
+      </div>
+      <label class="switch"><input type="checkbox" role="switch" id="s-awake-pick" aria-labelledby="s-awake"><span aria-hidden="true"></span></label>
     </section>
 
     <section aria-labelledby="s-usage">

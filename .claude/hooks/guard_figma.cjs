@@ -12,7 +12,7 @@
 // Reads the rules at run time, so editing rules.json changes what is enforced.
 const fs = require("fs");
 const path = require("path");
-const { readInput, WRITE: ANY_WRITE } = require("./_common.cjs"); // broad write-API pattern
+const { readInput, WRITE: ANY_WRITE, figcliCode } = require("./_common.cjs"); // broad write-API pattern
 
 const ROOT = path.join(__dirname, "..", "..");
 const WRITE = new RegExp(
@@ -23,23 +23,6 @@ const WRITE = new RegExp(
 const READ_ONLY_AGENTS = new Set(["ds-auditor", "token-extractor", "docs-writer"]);
 const FIGCLI = /\bsrc[\\/]index\.js\b/;
 const FIGCLI_READ = /\bsrc[\\/]index\.js\s+(eval|verify|check|snapshot|daemon\s+(status|restart)|--version)\b/;
-
-// Code that a FigCli Bash command sends to Figma: the inline eval string, plus the script of
-// `eval --file <path>` (resolved against the command's cwd and the Root).
-function figcliCode(cmd, cwd) {
-  let code = "";
-  const file = cmd.match(/\beval\s+--file\s+("([^"]+)"|'([^']+)'|(\S+))/);
-  if (file) {
-    const f = file[2] || file[3] || file[4];
-    for (const base of [cwd || process.cwd(), ROOT]) {
-      try { code = fs.readFileSync(path.resolve(base, f), "utf8"); break; } catch (e) { /* try next */ }
-    }
-  } else {
-    const inline = cmd.match(/\beval\s+([\s\S]*)$/);
-    if (inline) code = inline[1].replace(/^\s*["']|["']\s*$/g, "");
-  }
-  return code;
-}
 
 function readJson(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));

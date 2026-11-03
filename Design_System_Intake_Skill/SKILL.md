@@ -142,6 +142,8 @@ Trials ran one session per project (470-650 turns, context up to 690K tokens, re
 
 **Short Figma scripts.** Paste `tools/figma_helpers.figma.js` into `figma_execute` once per file per session; it keeps `DS.*` helpers loaded (variable binding, Auto Layout frames, text with styles, icons, instances and properties, a raw-value report). Later scripts call them instead of redefining helpers; still one section per script (section 7f.3). If a script says `DS is not defined`, paste the file again.
 
+**Heavy-step warning (contributed by EmG38, 2026-10-20).** Before any step expected to burn a large chunk of tokens in one go (building + verifying a Primitive ramp/token table or a component, a multi-screen extract, a full audit), say so in one line before running it, so the user can see where the budget is going. This matters more now that Foundation and Components ask for approval before every table/component (section 8, "Per-table and per-component confirmation") rather than one bundled approval per phase — more stop-and-ask turns, so make the per-step cost visible rather than silent.
+
 ---
 
 ## 1. Step 0 - Intake basics
@@ -269,6 +271,8 @@ Stop and ask for approval at each checkpoint. Show screenshots of each mode the 
 - Save a Figma version in history after each approved checkpoint.
 - Paths with no screens (0.8 = No) use checkpoints 1 and 2 only; if the user asks for screens later, ask 0.8's publish step first.
 - **Avatar Photo** and any other image content: there is no approved image asset in the Root. At the Components step Ask (choice) once: "Avatar Photo needs a sample photo you are allowed to use." "Initials and Icon only for now (Recommended)" / "I will share a photo". Never pull random photos from the web.
+- **Per-table confirmation inside Foundation (contributed by EmG38, 2026-10-20).** The checkpoint table above is the end-of-phase review, not the only approval in the phase. Before writing any primitive ramp or token table to Figma (one color ramp, the spacing scale, the radius scale, the typography sizes, the shadow scale...), show the proposed table of values first and Ask (choice): "Build <table>?" "Approve (Recommended)" / "Change something" (type the change in Other). Never bundle several different tables into one combined approval (e.g. a single "approve all the merges" question covering spacing, shadows and grays at once) — each table gets its own table-then-question turn. Reason: a session built all 6 Primitive ramps, every Semantic token, Spacing, Radius, Size and Typography in one pass from a single merge-approval answer, and separately built 12 components back-to-back with no approval between them — the user had no chance to catch a wrong value or an unwanted component before it was already in Figma.
+- **Per-component confirmation inside Components (contributed by EmG38, 2026-10-20).** Same principle as above, for every tier: before building each component (Button, Checkbox, Badge, Select/Dropdown...), state its tier, its dependencies (and confirm the lower tiers it needs already exist), and the variant/state table it is about to produce, then Ask (choice): "Build <Component>?" "Approve (Recommended)" / "Change something" before writing anything to Figma for it. Do this for every component, including small one-off atoms (Divider, Tooltip) — never batch two or more components into one approval. The end-of-phase Components checkpoint (table above) still runs afterward and shows everything together for final review; it does not replace the per-component confirmations.
 
 ---
 
