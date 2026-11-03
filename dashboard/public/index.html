@@ -345,6 +345,14 @@
       </select>
     </section>
 
+    <section aria-labelledby="s-awake" class="sheet setting-row">
+      <div>
+        <h2 id="s-awake" class="row-title">Keep awake</h2>
+        <p class="muted small" id="s-awake-note">While the dashboard runs, this computer does not go to sleep, so a long build or a wait for the usage limit to reset is not cut off. The screen can still turn off. Sleep comes back when you close the dashboard.</p>
+      </div>
+      <label class="switch"><input type="checkbox" role="switch" id="s-awake-pick" aria-labelledby="s-awake"><span aria-hidden="true"></span></label>
+    </section>
+
     <section aria-labelledby="s-usage">
       <h2 id="s-usage" class="section-title">Usage</h2>
       <p class="muted small">Tokens used through this dashboard, counted on this computer. Plans do not share how much is left, so a limit shows here when a tool reports one.</p>

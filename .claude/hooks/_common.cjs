@@ -1,6 +1,9 @@
 // Shared helpers for the hooks. Hooks run with Node.js (already required by Claude Code setup,
 // FigCli and Storybook), so a machine without Python never sees a hook error.
 const fs = require("fs");
+const path = require("path");
+
+const ROOT = path.join(__dirname, "..", "..");
 
 function readInput() {
   try {
@@ -30,4 +33,21 @@ const WRITE = new RegExp(
   String.raw`figma\.(create\w+|variables\.create\w+|group|flatten|union|subtract|intersect|exclude)\s*\(`
 );
 
-module.exports = { readInput, WRITE };
+// Code that a FigCli Bash command sends to Figma: the inline eval string, plus the script of
+// `eval --file <path>` (resolved against the command's cwd and the Root).
+function figcliCode(cmd, cwd) {
+  let code = "";
+  const file = cmd.match(/\beval\s+--file\s+("([^"]+)"|'([^']+)'|(\S+))/);
+  if (file) {
+    const f = file[2] || file[3] || file[4];
+    for (const base of [cwd || process.cwd(), ROOT]) {
+      try { code = fs.readFileSync(path.resolve(base, f), "utf8"); break; } catch (e) { /* try next */ }
+    }
+  } else {
+    const inline = cmd.match(/\beval\s+([\s\S]*)$/);
+    if (inline) code = inline[1].replace(/^\s*["']|["']\s*$/g, "");
+  }
+  return code;
+}
+
+module.exports = { readInput, WRITE, figcliCode };
