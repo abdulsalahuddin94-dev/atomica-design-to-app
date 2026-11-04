@@ -168,7 +168,8 @@ Flow (create, notice a drop, check, present, Storybook): Design_System_Intake_Sk
 
 ## 6. Component conventions
 - Names `Family / Variant`, Title Case; no `_` prefix for public components (use `_` or `.` only for private building blocks and keep them on a Building Blocks frame).
-- Properties: `Style`, `Size`, `State` (Default, Pressed, Disabled, Focused - iPad; no Hover on iPhone), `Selected`/`Is On`, `Role` (Default, Cancel, Destructive). **Never a `Mode=Light|Dark` variant** - dark is a variable mode.
+- **No Hover on mobile (Abdul, 2026-10-28):** phones and tablets have no pointer, so mobile components (Android, iOS, cross-platform, Mobile Adaptive) have no Hover / Hovered state or variant; tap feedback is the Pressed state (Android: state layer / ripple; iOS: highlighted, pressed opacity), plus Focused where the platform has keyboard focus. Hover is for Web (and desktop pointers) only. Check: `node tools/check_no_hover.cjs "My Projects/<Project>"` (0 findings).
+- Properties: `Style`, `Size`, `State` (Default, Pressed (highlighted), Disabled, Focused - iPad keyboard; no Hover), `Selected`/`Is On`, `Role` (Default, Cancel, Destructive). **Never a `Mode=Light|Dark` variant** - dark is a variable mode.
 - TEXT for every string, BOOLEAN for optional parts, INSTANCE_SWAP for icons, SLOT for sheet/alert content; every property wired.
 - 100% bound: fills, strokes, padding, gap, radius, text styles, effect styles; **0 remote** variables, styles or components (copy Apple kit parts only after re-binding them to local tokens).
 - Touch targets **44x44pt** minimum; list rows 44pt min (52-60 with subtitle).

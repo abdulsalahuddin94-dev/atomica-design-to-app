@@ -11,6 +11,17 @@ Questions: every `Ask (choice)` / `Ask (multi)` in this skill is an AskUserQuest
 
 ---
 
+## 0. Opt-in and sections (Abdul, 2026-11-02)
+
+Storybook is optional and off by default for every project. It runs only when `status.json > storybook.enabled` is `true` (intake 0.7, the dashboard's project Storybook page, or the user asks), for Code first and Figma first projects alike.
+1. **Read the plan first:** `node tools/storybook_sections.cjs "My Projects/<Project>"` prints `build` (the checked sections), `components` and `componentDetail` (what each component page shows) and `skip`. Not enabled -> build nothing and say how to turn it on.
+2. **Build only the checked sections.** A skipped section has no story, no docs page, no file to download and no sidebar entry (e.g. Tokens only = Colors, Typography, Spacing, CSS variables, Light/Dark). Component pages show only the checked details (Variants and states, Playground, Show code, Usage, Accessibility, Figma link); `components` limits which components get a page.
+3. **Code first:** tokens come from the code (Tailwind config, CSS variables, theme files) and the stories import the real components of the linked repo or the prototype with their props; Show code prints the real usage, never a copy of the component. **Figma first:** tokens from `data/tokens.json`, components from the registry and the DS file (sections 2-4).
+4. **Publishing stays opt-in:** "Public link" (GitHub Pages), "Storybook MCP" and "Auto-update" are built only when checked, and a public link still needs the user's yes at that moment. With the one-repo layout (`status.json > github.pages = "project-repo"`) the public link is `/<repo>/storybook/` of the project's own repo, next to the prototype: `node tools/publish_storybook.cjs "My Projects/<Project>"` (the dashboard's Publish Storybook button), never a second repo.
+5. Changing the checklist later rebuilds only what changed: add the new sections, remove the unchecked ones (files and navigation). The quality bar below applies to every section that is built.
+
+---
+
 ## 1. Principles (non-negotiable)
 
 1. **Documentation, not production code.** Components are faithful visual replicas for browsing and trying. No business logic, no data fetching, no app routing.
@@ -100,7 +111,7 @@ Story titles follow the Figma groups: `Foundations/Colors`, `Form Elements/Input
 5. **Components.** For each registry entry, tier by tier (Atoms first, so Molecules reuse them exactly like Figma nesting):
    - `argTypes` keys = Figma property and variant names exactly (`"Show optional"`, `"Leading icon"`, `State`, `Type`, `Size`). Variant options = Figma values exactly. Booleans -> boolean control, TEXT -> text control, INSTANCE_SWAP -> select of icon names.
    - Visuals match the Light and Dark screenshots in `references/screens/`. Use only token variables.
-   - Interactive states (Hover, Focus, Pressed, Disabled) also work for real (CSS :hover/:focus-visible), and the `State` control forces them for review.
+   - Interactive states (Hover on Web only, Focus, Pressed, Disabled) also work for real (CSS :hover/:focus-visible/:active), and the `State` control forces them for review. A mobile Storybook (Android, iOS, cross-platform, Mobile Adaptive) has no Hover state and no `:hover` rule: Pressed (`:active`) is the tap feedback (Abdul, 2026-10-28; `tools/check_no_hover.cjs`).
    - `parameters.design = { type: "figma", url: "<Figma link to the component set>" }` and an "Open in Figma" link at the top of the MDX.
    - Usage docs: each component gets a generated Docs page (principle 9). Content, first match wins: the registry entry's optional `docs` block (section 4b), then the Figma description (Purpose / Usage rules / Accessibility), `components.md` lines (`- Use:`, `- Do not use:`, `- Sizes:`, `- Content:`, `- Accessibility:`) and `rules.json` (touch target, contrast). Anatomy, variants, sizes, states and icon slots come from the Figma properties. Missing content shows as a missing section, never as invented text: fill the gap in the registry `docs` block (docs-writer) or the Figma description, then regenerate.
    - Read exact specs first with a read-only `figma_execute` walk (layout, padding, gap, radius, fills/strokes as variable names, text style names, effect styles) of each component set, then write the replica. Screenshots in `references/screens/` are the visual check.

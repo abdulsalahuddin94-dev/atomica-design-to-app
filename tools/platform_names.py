@@ -16,6 +16,9 @@ Rules
            AppTheme.colors.<camel> / AppTheme.<Collection>.<camel> (XML @color/<snake>, @dimen/<snake>).
 - Mobile Adaptive (iOS + Android in one Figma file, an OS collection with iOS / Android modes): every token
            gets both name lists ({"ios": [...], "android": [...]}) and the Storybook Platform switch picks one.
+- Screen reference code (tools/screen_code.py, the prototype's Code panel): screen_* functions below give short names
+           for Jetpack Compose, SwiftUI, Flutter (Theme.of(context).colorScheme.<role>, AppSpacing.<name>), React
+           Native (tokens.<group>.<name>) and React (Web, the CSS variable).
 - Figma Code syntax wins: when a variable has Code syntax for the platform (data/tokens.json > code_syntax,
            keys iOS / ANDROID / WEB), that is the first name; the derived name follows as the DesignTokens file name.
 """
@@ -38,7 +41,8 @@ M3_SHAPES = {"extraSmall", "small", "medium", "large", "extraLarge"}
 HIG_TEXT = {"largetitle": "largeTitle", "title1": "title", "title": "title", "title2": "title2", "title3": "title3",
             "headline": "headline", "body": "body", "callout": "callout", "subheadline": "subheadline",
             "footnote": "footnote", "caption1": "caption", "caption": "caption", "caption2": "caption2"}
-PLATFORM_LABEL = {"web": "CSS variable", "ios": "SwiftUI", "android": "Jetpack Compose", "adaptive": "SwiftUI / Jetpack Compose"}
+PLATFORM_LABEL = {"web": "CSS variable", "ios": "SwiftUI", "android": "Jetpack Compose", "adaptive": "SwiftUI / Jetpack Compose",
+                  "flutter": "Flutter", "react-native": "React Native"}
 PLATFORM_FILE = {"ios": "DesignTokens.swift", "android": "DesignTokens.kt", "web": "tokens.css"}
 ADAPTIVE_PLATFORMS = ("ios", "android")
 CODE_SYNTAX_KEY = {"ios": "iOS", "android": "ANDROID", "web": "WEB"}
@@ -48,6 +52,10 @@ def platform_key(platform):
     p = (platform or "web").lower()
     if "adaptive" in p:
         return "adaptive"
+    if "flutter" in p:
+        return "flutter"
+    if "native" in p and "react" in p:
+        return "react-native"
     return "ios" if "ios" in p else "android" if "android" in p else "web"
 
 
@@ -124,11 +132,32 @@ def _strip_color(name):
     return re.sub(r"(?i)^colou?r/", "", name)
 
 
+def _motion(var):
+    """("duration", ms) | ("easing", (x1, y1, x2, y2)) for a Motion token (md/sys/motion/...), else None."""
+    if not re.search(r"(?i)(^|/)motion(/|$)", var["name"] + "/" + var.get("collection", "")):
+        return None
+    val = next(iter(var["values"].values()), None)
+    m = re.match(r"\s*cubic-bezier\(([^)]*)\)", str(val))
+    if m:
+        return ("easing", tuple(float(x) for x in m.group(1).split(",")))
+    return ("duration", val) if _num(val) is not None else None
+
+
+def _motion_key(var):
+    return camel(re.sub(r"(?i)^.*?motion/", "", var["name"]), dedupe=False)
+
+
 def token_code(var, platform, role=""):
     """[{label, name}] for one variable; the first entry is what developers type."""
     p = platform_key(platform)
     name, col, typ = var["name"], var["collection"], var["type"]
     role = (role or "").lower()
+    if _motion(var) and p in ("ios", "android"):
+        key = _motion_key(var)
+        if p == "ios":
+            return [{"label": "SwiftUI", "name": f"Motion.{key}"}]
+        return [{"label": "Compose", "name": f"AppTheme.Motion.{key}"},
+                {"label": "M3 token", "name": "md.sys.motion." + ".".join(re.sub(r"(?i)^.*?motion/", "", name).split("/"))}]
     if p == "ios":
         if typ == "color":
             return [{"label": "SwiftUI", "name": f"Color.{camel(_strip_color(name))}"},
@@ -246,7 +275,7 @@ def swift_source(variables, collections, text_styles, project):
         "    }",
         "",
     ]
-    numbers, seen = {}, set()
+    numbers, seen, motion = {}, set(), []
     for v in variables.values():
         modes = collections[v["collection"]]["modes"]
         res = v.get("resolved") or {}
@@ -261,9 +290,20 @@ def swift_source(variables, collections, text_styles, project):
                 lines.append(f"    static let {code} = Color(light: 0x{_hex(res[light])}, dark: 0x{_hex(res[dark])}) // {v['collection']}::{v['name']}")
             elif _hex(res.get(modes[0])):
                 lines.append(f"    static let {code} = Color(hex: 0x{_hex(res[modes[0]])}) // {v['collection']}::{v['name']}")
+        elif _motion(v):
+            motion.append(v)
         elif _num(next(iter(v["values"].values()), None)) is not None:
             numbers.setdefault(_collection_name(v["collection"]), []).append(v)
     lines += ["}", ""]
+    if motion:
+        lines.append("enum Motion {")
+        for v in motion:
+            kind, val = _motion(v)
+            if kind == "duration":
+                lines.append(f"    static let {_motion_key(v)}: Double = {val / 1000:g} // seconds; {v['collection']}::{v['name']}")
+            else:
+                lines.append(f"    static let {_motion_key(v)} = Animation.timingCurve({', '.join(f'{x:g}' for x in val)}, duration: 0.3) // pass the duration you use; {v['collection']}::{v['name']}")
+        lines += ["}", ""]
     for enum, vs in numbers.items():
         lines.append(f"enum {enum} {{")
         names = set()
@@ -289,6 +329,7 @@ def kotlin_source(variables, collections, text_styles, project, roles):
         "",
         "import androidx.compose.foundation.shape.RoundedCornerShape",
         "import androidx.compose.material3.*",
+        "import androidx.compose.animation.core.CubicBezierEasing",
         "import androidx.compose.runtime.*",
         "import androidx.compose.ui.graphics.Color",
         "import androidx.compose.ui.text.TextStyle",
@@ -297,10 +338,12 @@ def kotlin_source(variables, collections, text_styles, project, roles):
         "import androidx.compose.ui.unit.sp",
         "",
     ]
-    palette, m3, custom, dims = [], {}, {}, {}
+    palette, m3, custom, dims, motion = [], {}, {}, {}, []
     for v in variables.values():
         role = roles.get(v["collection"], "")
-        if v["type"] == "color":
+        if _motion(v):
+            motion.append(v)
+        elif v["type"] == "color":
             code = token_code(v, "android", role)[0]["name"]
             if code.startswith("Palette."):
                 palette.append((code.split(".", 1)[1], v))
@@ -344,6 +387,15 @@ def kotlin_source(variables, collections, text_styles, project, roles):
             continue
         lines.append(f"    object {obj} {{")
         lines += [f"        val {c} = {_num(next(iter(v['values'].values())))}.dp // {v['collection']}::{v['name']}" for c, v in vs.items()]
+        lines.append("    }")
+    if motion:
+        lines.append("    object Motion {")
+        for v in motion:
+            kind, val = _motion(v)
+            if kind == "duration":
+                lines.append(f"        const val {_motion_key(v)} = {_num(val)} // ms; {v['collection']}::{v['name']}")
+            else:
+                lines.append(f"        val {_motion_key(v)} = CubicBezierEasing({', '.join(f'{x:g}f' for x in val)}) // {v['collection']}::{v['name']}")
         lines.append("    }")
     lines += ["}", ""]
     if dims.get("M3Shapes"):
@@ -592,3 +644,115 @@ def adaptive_kotlin_source(variables, collections, text_styles, project):
             lines.append(f"    val {ident} = TextStyle(fontSize = {_num(size)}.sp, lineHeight = {_num(lh)}.sp, fontWeight = FontWeight({int(float(w or 400))})) // {fam}")
         lines += ["}", ""]
     return "\n".join(lines) + "\n"
+
+
+# ------------------------------------------------------------------ screen reference code (tools/screen_code.py)
+# Short names for the five reference-code platforms of the prototype code panel. Same rule as above: every name is
+# derived mechanically from the Figma name, so the code panel, data/code_map.json and the check all agree.
+SCREEN_PLATFORMS = ("compose", "swiftui", "flutter", "react-native", "web")
+SCREEN_LABEL = {"compose": "Jetpack Compose", "swiftui": "SwiftUI", "flutter": "Flutter", "react-native": "React Native", "web": "React (Web)"}
+SCREEN_EXT = {"compose": "kt", "swiftui": "swift", "flutter": "dart", "react-native": "tsx", "web": "tsx"}
+_DART_RESERVED = {"default", "in", "is", "new", "null", "true", "false", "this", "super", "switch", "case", "class",
+                  "const", "enum", "extends", "final", "for", "if", "return", "var", "void", "while", "with"}
+_SWIFT_RESERVED = {"default", "in", "is", "self", "super", "switch", "case", "class", "enum", "for", "if", "return",
+                   "var", "let", "while", "true", "false", "nil", "static", "struct", "func", "import", "protocol"}
+
+
+def _leaf(var, group):
+    """The part of a token name after its group: md/sys/color/on_surface -> on_surface, md/sys/spacing/16 -> spacing/16."""
+    name = var["name"]
+    m = re.match(r"(?i)^md/(?:sys|ref)/(color|spacing|shape|size|typescale|elevation|palette)/(.+)$", name)
+    rest = m.group(2) if m else _strip_color(name)
+    if group in ("spacing", "size") and re.match(r"^\d", rest):
+        rest = group + "/" + rest  # a bare number is not a name: spacing/16 -> spacing16
+    return rest
+
+
+def token_group(var, role=""):
+    """color / spacing / radius / size / other, from the variable type, collection role and name."""
+    role, col, name = (role or "").lower(), var["collection"].lower(), var["name"].lower()
+    if var["type"] == "color":
+        return "color"
+    if "radius" in role or re.search(r"corner|shape|radius", col + "/" + name):
+        return "radius"
+    if "spacing" in role or "spacing" in col or "/spacing/" in name:
+        return "spacing"
+    if "size" in role or col == "size" or "/size/" in name:
+        return "size"
+    return "other"
+
+
+def screen_token(var, platform, role="", css=""):
+    """What a developer types for one token on a reference-code platform."""
+    g = token_group(var, role)
+    c = camel(_leaf(var, g), dedupe=False)
+    last = camel(var["name"].split("/")[-1], dedupe=False)
+    if platform == "web":
+        return f"var({css})" if css else ""
+    if platform == "compose":
+        if g == "color":
+            return f"MaterialTheme.colorScheme.{c}" if c in M3_COLOR_ROLES else f"AppTheme.colors.{c}"
+        if g == "radius":
+            return f"MaterialTheme.shapes.{last}" if last in M3_SHAPES else f"AppTheme.shapes.{c}"
+        return f"AppTheme.{ {'spacing': 'spacing', 'size': 'sizes'}.get(g, 'tokens') }.{c}"
+    if platform == "swiftui":
+        return f"DS.{ {'color': 'Colors', 'spacing': 'Spacing', 'radius': 'Radius', 'size': 'Size'}.get(g, 'Tokens') }.{c}"
+    if platform == "flutter":
+        if g == "color" and c in M3_COLOR_ROLES:
+            return f"Theme.of(context).colorScheme.{c}"
+        return f"{ {'color': 'AppColors', 'spacing': 'AppSpacing', 'radius': 'AppRadius', 'size': 'AppSizes'}.get(g, 'AppTokens') }.{c}"
+    if platform == "react-native":
+        return f"tokens.{ {'color': 'color', 'spacing': 'spacing', 'radius': 'radius', 'size': 'size'}.get(g, 'other') }.{c}"
+    return ""
+
+
+def screen_text_style(style, platform, css_class=""):
+    """Text style name (M3/body_medium -> bodyMedium) on a reference-code platform."""
+    c = camel(re.sub(r"(?i)^(m3|md/sys/typescale)/", "", style), dedupe=False)
+    if platform == "web":
+        return css_class
+    if platform == "compose":
+        return f"MaterialTheme.typography.{c}" if c in M3_TYPE else f"AppTheme.typography.{c}"
+    if platform == "flutter":
+        return f"Theme.of(context).textTheme.{c}" if c in M3_TYPE else f"AppTextStyles.{c}"
+    return {"swiftui": f"DS.Typography.{c}", "react-native": f"textStyles.{c}"}.get(platform, "")
+
+
+def screen_component(name, platform, web_export=""):
+    """Component name: the Figma name in PascalCase (Media Card -> MediaCard); Web uses the Storybook export."""
+    if platform == "web" and web_export:
+        return web_export
+    return "".join(w[:1].upper() + w[1:] for w in words(name, dedupe=False)) or "Component"
+
+
+def screen_prop(name, platform):
+    """Property name: camelCase (Show Actions -> showActions); Web keeps the Figma name (the Storybook API)."""
+    if platform == "web":
+        return name
+    c = camel(name, dedupe=False)
+    if platform == "flutter" and c in _DART_RESERVED or platform == "swiftui" and c in _SWIFT_RESERVED:
+        c += "Value"
+    return c
+
+
+def screen_enum(component, axis, value, platform):
+    """A variant value: Compose / Flutter enum (MediaCardSize.Large / .large), SwiftUI .large, RN 'large', Web 'Large'."""
+    v = camel(value, dedupe=False)
+    if platform == "web":
+        return value
+    if platform == "react-native":
+        return v
+    enum = screen_component(component, platform) + screen_component(axis, platform)
+    if platform == "compose":
+        return f"{enum}.{v[:1].upper() + v[1:]}"
+    if platform == "flutter":
+        return f"{enum}.{v + 'Value' if v in _DART_RESERVED else v}"
+    return f".{v}"
+
+
+def screen_icon(name, platform):
+    """Icon component (Icon/play_arrow): AppIcons.PlayArrow, DS.Icons.playArrow, AppIcons.playArrow, 'play_arrow'."""
+    base = re.sub(r"(?i)^icons?/", "", name)
+    c = camel(base, dedupe=False)
+    return {"compose": f"AppIcons.{c[:1].upper() + c[1:]}", "swiftui": f"DS.Icons.{c}", "flutter": f"AppIcons.{c}",
+            "react-native": base, "web": base}.get(platform, base)

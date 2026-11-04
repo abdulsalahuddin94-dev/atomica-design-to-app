@@ -139,12 +139,14 @@ let projects = [];
 window.addEventListener("hashchange", route);
 function route() {
   const m = location.hash.match(/^#\/chat\/([\w-]+)/);
-  const page = m ? "chat" : /^#\/settings/.test(location.hash) ? "settings" : /^#\/projects/.test(location.hash) ? "projects" : /^#\/styles/.test(location.hash) ? "styles" : "home";
-  for (const a of document.querySelectorAll("[data-nav]")) a.classList.toggle("on", a.dataset.nav === page);
+  const pm = location.hash.match(/^#\/project\/([^/]+)(?:\/([\w-]+))?/); // project pages (project-pages.js)
+  const page = m ? "chat" : pm ? "project" : /^#\/settings/.test(location.hash) ? "settings" : /^#\/projects/.test(location.hash) ? "projects" : /^#\/styles/.test(location.hash) ? "styles" : "home";
+  for (const a of document.querySelectorAll("[data-nav]")) a.classList.toggle("on", a.dataset.nav === (page === "project" ? "projects" : page));
+  if (page !== "project") hideProjectNav();
   // Inside a project the conversation gets the whole width: the app sidebar steps aside.
   document.body.classList.toggle("focus", page === "chat");
   if (current?.es) { current.es.close(); current.cleanup?.(); current = null; }
-  if (page === "chat") renderChat(m[1]); else if (page === "settings") renderSettings(); else if (page === "projects") renderProjects(); else if (page === "styles") renderStyles(); else renderHome();
+  if (page === "chat") renderChat(m[1]); else if (page === "project") renderProjectPage(decodeURIComponent(pm[1]), pm[2] || "pipeline"); else if (page === "settings") renderSettings(); else if (page === "projects") renderProjects(); else if (page === "styles") renderStyles(); else renderHome();
 }
 
 // ---------- Settings ----------
@@ -505,6 +507,7 @@ function renderProjects() {
   app.replaceChildren($("#tpl-projects").content.cloneNode(true));
   $("#refresh").addEventListener("click", () => { loadProjects(); checkUpdates(true); });
   $("#add-project").addEventListener("click", () => openProjectForm());
+  $("#open-github").addEventListener("click", () => openFromGitHub());
   for (const b of app.querySelectorAll("[data-view]")) {
     b.setAttribute("aria-pressed", String(b.dataset.view === projectView));
     b.addEventListener("click", () => {
@@ -517,7 +520,8 @@ function renderProjects() {
   loadProjects();
 }
 
-const openProject = (p) => start({ prompt: PROMPTS.project(p.name), project: p.name, title: p.title }).catch(showError);
+// A project opens on its Pipeline page; "Continue in chat" there starts the conversation (project-pages.js).
+const openProject = (p) => { location.hash = `#/project/${encodeURIComponent(p.name)}/pipeline`; };
 
 function rowActions(p) {
   return el("span", { class: "row-actions" },
@@ -658,7 +662,7 @@ const icon = (name, cls = "ic") => {
 };
 
 function linkChip(l) {
-  const mark = l.kind === "figma" ? figmaIcon() : l.kind === "github" ? brandIcon("b-github") : l.kind === "storybook" ? brandIcon("b-storybook") : icon("i-external");
+  const mark = l.kind === "figma" ? figmaIcon() : l.kind === "github" ? brandIcon("b-github") : l.kind === "storybook" ? brandIcon("b-storybook") : l.kind === "prototype" ? icon("i-phone") : icon("i-external");
   return el("a", { class: "chip", href: l.url, target: "_blank", rel: "noopener", title: l.url }, mark, l.kind === "figma" ? `Figma · ${l.label}` : l.label);
 }
 
@@ -696,17 +700,22 @@ const jobNo = (i) => `No.${String(i + 1).padStart(3, "0")}`;
 // Figma connection for the Home counter: FigCli Yolo answers on port 9222 when Figma Desktop runs patched.
 let integrationsCache = null;
 const getIntegrations = () => (integrationsCache ||= api("/api/integrations").catch(() => null));
+// The Figma tile: the default tool and its state, then the three tools with a dot each (click one for details and setup).
 async function loadFigmaTally() {
-  const d = await getIntegrations();
-  const lines = d?.figma?.lines || [];
-  const yolo = lines.find((l) => /yolo/i.test(l)) || "";
-  const bridge = lines.find((l) => /desktop bridge/i.test(l)) || "";
-  const state = /port 9222 open/i.test(yolo) ? ["Connected", "ok"] : /installed/i.test(bridge) || /installed/i.test(yolo) ? ["Not running", "off"] : ["Not set up", "off"];
   const dd = $("#t-figma");
   if (!dd) return;
-  dd.textContent = state[0];
-  dd.parentElement.classList.toggle("off", state[1] === "off");
-  dd.parentElement.title = lines.join("\n");
+  let st;
+  try { st = await getFigmaTools(); } catch { dd.textContent = "–"; return; }
+  const draw = () => {
+    if (!dd.isConnected) return;
+    const def = figmaToolsCache.tools[figmaToolsCache.default];
+    dd.classList.add("ftile");
+    dd.replaceChildren(el("span", { class: "fnow" }, `${figmaToolName(figmaToolsCache.default)} · ${def.checking ? "checking" : def.connected ? "Connected" : "Needs setup"}`), figmaToolRows(figmaToolsCache));
+    dd.parentElement.classList.toggle("off", !def.connected);
+    dd.parentElement.title = def.reason;
+  };
+  draw();
+  refreshFigmaToolsLater(draw);
 }
 
 // "Worth a look": facts from the projects, usage and workflow, each with one action. Nothing is invented.
@@ -959,8 +968,9 @@ function notifyButton() {
   return b;
 }
 
-function renderChat(id) {
-  const app = $("#app");
+// mount: where the conversation goes (the whole page, or the Design workspace's chat panel in project-pages.js).
+function renderChat(id, mount) {
+  const app = mount || $("#app");
   app.replaceChildren($("#tpl-chat").content.cloneNode(true));
   const log = $("#log");
   const input = $("#input");
@@ -1092,9 +1102,36 @@ function renderChat(id) {
   loadGlossary();
   const es = new EventSource(`/api/sessions/${id}/events`);
   current.es = es;
+  // The dashboard restarted (or the stream dropped): reconnect by itself. A conversation that is no longer running
+  // is continued from its Claude session (same history); the page that hosts it is told the new id ("chat-reconnect").
+  let reconnecting = null;
   es.onerror = () => {
-    if (es.readyState === EventSource.CLOSED) add(el("div", { class: "sys err" }, "Lost the connection to the dashboard. Is its window still open?"));
+    if (es.readyState !== EventSource.CLOSED || reconnecting) return;
+    reconnecting = add(el("div", { class: "sys reconnecting" }, "Reconnecting…"));
+    reconnect();
   };
+  async function reconnect() {
+    const sess = state.session || {};
+    for (let i = 0; i < 60; i++) {
+      if (current?.es !== es) return; // the user left this conversation
+      try {
+        const { live, past } = await api("/api/sessions");
+        let to = live.find((x) => x.id === id) || (sess.claudeSessionId && live.find((x) => x.claudeSessionId === sess.claudeSessionId));
+        if (!to && sess.claudeSessionId && past.some((x) => x.claudeSessionId === sess.claudeSessionId))
+          to = await api("/api/sessions", { resume: sess.claudeSessionId, project: sess.project, title: sess.title });
+        if (to) {
+          current.cleanup?.(); current = null;
+          const ev = new CustomEvent("chat-reconnect", { cancelable: true, detail: { from: id, to: to.id, claudeSessionId: to.claudeSessionId || sess.claudeSessionId || null } });
+          if (!window.dispatchEvent(ev)) return; // a host page (the Design workspace) mounts it again itself
+          if (to.id !== id) location.hash = `#/chat/${to.id}`; else renderChat(id, mount);
+          return;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    reconnecting.textContent = "Lost the connection to the dashboard. Is its window still open?";
+    reconnecting.classList.add("err");
+  }
   es.onmessage = (ev) => {
     const e = JSON.parse(ev.data);
     switch (e.type) {
@@ -1167,6 +1204,8 @@ function renderChat(id) {
         break;
       case "result":
         state.toolRow = null; state.live = null;
+        // a new conversation gets its Claude session id with the first reply: keep it, so a reconnect can continue it
+        if (state.session && !state.session.claudeSessionId) api("/api/sessions").then((r) => { const me = r.live.find((x) => x.id === id); if (me?.claudeSessionId) state.session.claudeSessionId = me.claudeSessionId; }).catch(() => {});
         attention(e.ok ? "Done" : "Stopped", e.at);
         if (!e.ok && e.error) add(el("div", { class: "sys err" }, e.error));
         break;
@@ -1597,6 +1636,21 @@ $("#perm").addEventListener("click", openPerm);
 refreshPerm();
 // The sidebar's Add to the workflow buttons live outside the page templates, so they are bound once.
 for (const b of document.querySelectorAll(".sidenav [data-add]")) b.addEventListener("click", () => openAdd(b.dataset.add));
+initRail();
 route();
 checkUpdates(true);
 refreshAccount();
+
+// ---------- Open a shared project from GitHub (tools/project_repo.cjs) ----------
+// The repo is cloned into My Projects as it is; the project's GitHub page then lists what this computer still needs.
+async function openFromGitHub() {
+  const link = await askText({ title: "Open a project from GitHub", help: "Paste the project's GitHub link. It is copied into My Projects with everything in it; nothing on GitHub changes.", placeholder: "https://github.com/owner/project", okLabel: "Open" });
+  if (!link) return;
+  toast("Copying the project from GitHub…");
+  try {
+    const r = await api("/api/projects/open-github", { url: link });
+    const todo = (r.setup || []).filter((s) => !s.ok && !s.optional).length;
+    toast(todo ? `Opened ${r.name}. ${todo} thing(s) to set up on this computer: see its GitHub page.` : `Opened ${r.name}.`);
+    location.hash = `#/project/${encodeURIComponent(r.name)}/${todo ? "github" : "pipeline"}`;
+  } catch (e) { showError(e); }
+}

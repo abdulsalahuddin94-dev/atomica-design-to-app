@@ -44,3 +44,4 @@ private/
 # Contributions saved locally by /contribute before they are sent
 contributions/
 CLAUDE.local.md
+.trial/

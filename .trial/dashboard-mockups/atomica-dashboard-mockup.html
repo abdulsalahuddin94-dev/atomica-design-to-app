@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Atomica dashboard mockups</title>
+<style>
+/* Tokens, brand and shell copied from the Atomica dashboard (dashboard/public/app.css). */
+:root{
+  --paper:#F3F4F6;--sheet:#FFFFFF;--sheet-2:#F7F8FA;--rule:#E2E4E9;--rule-2:#C9CDD5;
+  --ink:#121418;--ink-2:#4B505C;--ink-3:#656A76;
+  --cyan:#00A3E0;--cyan-ink:#006E9E;--cyan-soft:#E3F4FB;
+  --magenta:#E0007A;--magenta-ink:#B00061;--magenta-soft:#FCE6F1;
+  --yellow:#FFD200;--yellow-ink:#7A5B00;--yellow-soft:#FFF6CC;
+  --key:#121418;--on-key:#FFFFFF;--good:#0F7B4E;--good-soft:#E3F3EB;--blend:multiply;
+  --shadow:0 1px 2px rgba(18,20,24,.06),0 8px 24px -12px rgba(18,20,24,.18);
+  --sans:"Archivo","Segoe UI",system-ui,sans-serif;--mono:"Red Hat Mono",ui-monospace,Consolas,monospace;--r:6px;
+  color-scheme:light}
+:root[data-theme="dark"]{
+  --paper:#0C0E11;--sheet:#14171C;--sheet-2:#1A1E24;--rule:#262A32;--rule-2:#363B45;
+  --ink:#ECEEF2;--ink-2:#AEB3BE;--ink-3:#868B97;
+  --cyan:#29C4FF;--cyan-ink:#6BD6FF;--cyan-soft:rgba(41,196,255,.12);
+  --magenta:#FF3FA4;--magenta-ink:#FF7DC0;--magenta-soft:rgba(255,63,164,.13);
+  --yellow:#FFD84A;--yellow-ink:#FFD84A;--yellow-soft:rgba(255,216,74,.12);
+  --key:#ECEEF2;--on-key:#0C0E11;--good:#3DD68C;--good-soft:rgba(61,214,140,.12);--blend:screen;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.7);color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100dvh;background:var(--paper);color:var(--ink);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;line-height:1.15;letter-spacing:-.02em}
+p{margin:0}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:4px}
+.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.muted{color:var(--ink-2)}.note{font-size:13px;color:var(--ink-3)}.mono{font-family:var(--mono);font-size:12.5px}
+.strip{display:grid;grid-template-columns:repeat(16,1fr);height:5px;position:sticky;top:0;z-index:30}
+.strip i{display:block}.strip .c{background:var(--cyan)}.strip .m{background:var(--magenta)}.strip .y{background:var(--yellow)}.strip .k{background:var(--key)}
+.strip .t75{opacity:.75}.strip .t50{opacity:.5}.strip .t25{opacity:.25}
+.glow{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.glow i{position:absolute;width:52vmax;height:52vmax;border-radius:50%;filter:blur(90px);opacity:.14;mix-blend-mode:var(--blend)}
+.glow .g1{background:var(--cyan);left:-12vmax;top:-18vmax}.glow .g2{background:var(--magenta);right:-16vmax;top:12vmax;opacity:.11}
+.primary,.ghost,.textbtn,.pill,.iconbtn{cursor:pointer;display:inline-flex;align-items:center;gap:8px;line-height:1.2;font-size:14px;border-radius:var(--r);transition:background .15s,border-color .15s,color .15s}
+.primary{background:var(--key);color:var(--on-key);border:1px solid var(--key);padding:9px 16px;font-weight:600}
+.primary.big{padding:12px 20px;font-size:15px}
+.ghost{background:var(--sheet);border:1px solid var(--rule-2);padding:8px 14px}
+.ghost:hover,.iconbtn:hover{border-color:var(--cyan);color:var(--cyan-ink)}
+.ghost.sm,.primary.sm{padding:5px 10px;font-size:13px}
+.ghost.danger{color:var(--magenta-ink)}
+.textbtn{background:none;border:0;padding:4px 2px;color:var(--ink-2);font-size:13.5px}
+.pill{border:1px solid var(--rule-2);background:var(--sheet);padding:5px 11px;border-radius:999px;font:500 12.5px var(--sans);color:var(--ink-2)}
+.iconbtn{width:34px;height:34px;justify-content:center;border:1px solid var(--rule-2);background:var(--sheet);border-radius:50%;padding:0}
+.iconbtn.sq{border-radius:var(--r);width:30px;height:30px}
+.theme .moon{display:none}:root[data-theme="dark"] .theme .sun{display:none}:root[data-theme="dark"] .theme .moon{display:block}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--sans);padding:3px 8px;border-radius:4px;border:1px solid var(--rule);background:var(--sheet-2);color:var(--ink-2);white-space:nowrap}
+.chip.cyan{background:var(--cyan-soft);border-color:transparent;color:var(--cyan-ink)}
+.chip.mag{background:var(--magenta-soft);border-color:transparent;color:var(--magenta-ink)}
+.chip.good{background:var(--good-soft);border-color:transparent;color:var(--good)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.dot.good{background:var(--good)}.dot.bad{background:var(--magenta)}.dot.wait{background:var(--yellow)}.dot.run{background:var(--cyan)}
+.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r)}
+.panel{padding:18px;display:grid;gap:12px;align-content:start}
+.section-title{font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--ink-2);display:flex;align-items:center;gap:10px}
+.kicker{font:600 11px var(--mono);color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+.seg{display:inline-flex;border:1px solid var(--rule-2);border-radius:var(--r);overflow:hidden;background:var(--sheet)}
+.seg button{border:0;background:none;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--ink-2)}
+.seg button.on{background:var(--key);color:var(--on-key)}
+.actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+/* shell: sidebar collapses to an icon rail */
+.shell{display:grid;grid-template-columns:264px minmax(0,1fr);min-height:calc(100dvh - 5px);transition:grid-template-columns .2s}
+.sidenav{position:sticky;top:5px;align-self:start;height:calc(100dvh - 5px);overflow:auto;display:flex;flex-direction:column;gap:22px;padding:22px 18px 18px;border-right:1px solid var(--rule);background:color-mix(in srgb,var(--sheet) 72%,transparent);backdrop-filter:blur(14px) saturate(1.3)}
+.brandrow{display:flex;align-items:center;gap:8px}
+.brand{display:flex;align-items:center;gap:12px;color:var(--ink);text-decoration:none;flex:1;min-width:0}
+.mark{position:relative;width:34px;height:34px;flex:none}
+.mark .reg{position:absolute;inset:0;width:34px;height:34px;mix-blend-mode:var(--blend);transition:transform .45s cubic-bezier(.16,1,.3,1)}
+.mark .reg.c{color:var(--cyan);transform:translate(-1.5px,1px)}.mark .reg.m{color:var(--magenta);transform:translate(1.5px,-1px)}.mark .reg.k{color:var(--key);opacity:.92}
+.brand:hover .reg.c,.brand:hover .reg.m{transform:none}
+.word{display:grid;line-height:1.15;white-space:nowrap}
+.word b{font-size:19px;font-weight:800;letter-spacing:-.02em;font-stretch:118%}
+.word small{font-size:12px;color:var(--ink-2);font-weight:500}
+.for-figma{display:flex;gap:10px;align-items:center;font-size:12.5px;color:var(--ink-2);line-height:1.35;padding:10px 12px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet)}
+.for-figma b{color:var(--ink)}.for-figma svg{width:14px;height:21px;flex:none}
+.side-title{font-size:12px;font-weight:600;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;margin:0 0 8px 2px;white-space:nowrap}
+.side-nav{display:grid;gap:2px}
+.side-nav button{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r);color:var(--ink-2);background:none;border:0;font-size:14.5px;font-weight:500;position:relative;cursor:pointer;width:100%;text-align:left;white-space:nowrap}
+.side-nav button:hover{background:var(--sheet-2);color:var(--ink)}
+.side-nav button.on{background:var(--sheet);color:var(--ink);box-shadow:0 0 0 1px var(--rule)}
+.side-nav button.on::before{content:"";position:absolute;left:-18px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--cyan)}
+.side-nav .count{margin-left:auto;font:600 11px var(--mono);padding:1px 6px;border-radius:999px;background:var(--magenta-soft);color:var(--magenta-ink)}
+.side-nav .count.y{background:var(--yellow-soft);color:var(--yellow-ink)}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-top:14px;border-top:1px solid var(--rule)}
+.collapse .ic{transition:transform .2s}
+body.rail .shell{grid-template-columns:72px minmax(0,1fr)}
+body.rail .sidenav{padding:22px 12px 18px;align-items:center}
+body.rail .word,body.rail .for-figma,body.rail .side-title,body.rail .side-nav .label,body.rail .side-foot .pill,body.rail .side-nav .count{display:none}
+body.rail .brandrow{flex-direction:column}
+body.rail .side-nav button{justify-content:center;padding:10px}
+body.rail .side-nav button.on::before{left:-12px}
+body.rail .collapse .ic{transform:rotate(180deg)}
+body.rail .side-foot{flex-direction:column}
+body.rail .side-nav button[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);background:var(--key);color:var(--on-key);font-size:12.5px;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:40}
+.main{min-width:0}
+.page{padding:22px 32px 40px;max-width:1240px}
+.page-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.page-head h1{font-size:28px;font-weight:800;font-stretch:118%;letter-spacing:-.03em}
+.page-head .sub{color:var(--ink-2);font-size:14px;margin-top:4px}
+.page-head .right{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.crumbs{font:500 12.5px var(--sans);color:var(--ink-3);margin-bottom:6px}
+.view{display:none}.view.on{display:block}
+.mock-tag{font:600 10.5px var(--mono);letter-spacing:.06em;background:var(--yellow-soft);color:var(--yellow-ink);padding:2px 7px;border-radius:4px;text-transform:uppercase}
+.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:16px}
+.step{padding:16px 14px 14px;border:1px solid var(--rule);background:var(--sheet);display:grid;gap:6px;align-content:start;min-height:148px}
+.step:first-child{border-radius:var(--r) 0 0 var(--r)}.step:last-child{border-radius:0 var(--r) var(--r) 0}
+.step+.step{border-left:0}
+.step .n{font:600 11px var(--mono);color:var(--ink-3)}
+.step h3{font-size:15px;font-weight:650}
+.step .st{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600}
+.step.done .st{color:var(--good)}.step.wait{box-shadow:inset 0 3px 0 var(--magenta)}.step.wait .st{color:var(--magenta-ink)}
+.step.run{box-shadow:inset 0 3px 0 var(--cyan)}.step.run .st{color:var(--cyan-ink)}.step.prob{box-shadow:inset 0 3px 0 var(--yellow)}.step.prob .st{color:var(--yellow-ink)}
+.step p{font-size:12.5px;color:var(--ink-2);line-height:1.4}
+.next{display:flex;align-items:center;gap:16px;padding:16px 18px;border:1px solid var(--rule);border-left:4px solid var(--magenta);border-radius:var(--r);background:var(--sheet);margin-bottom:16px;flex-wrap:wrap}
+.next .t{flex:1;min-width:240px}.next .t b{display:block;font-size:16px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13.5px;margin:0}
+.kv dt{color:var(--ink-3)}.kv dd{margin:0;font-weight:500}
+.tally{display:flex;margin:0 0 16px;border:1px solid var(--rule);background:var(--sheet);border-radius:var(--r);overflow:hidden}
+.tally div{flex:1;padding:12px 18px 12px 16px;border-left:1px solid var(--rule);display:flex;flex-direction:column;gap:4px}
+.tally div:first-child{border-left:0}
+.tally dt{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.tally dt::before{content:"";width:7px;height:7px;border-radius:1px;background:var(--key)}
+.tally .warn dt::before{background:var(--yellow)}.tally .live dt::before{background:var(--cyan);border-radius:50%}.tally .mag dt::before{background:var(--magenta)}
+.tally dd{margin:2px 0 0;font:600 36px/1 var(--mono);letter-spacing:-.02em}
+.feed div{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:13.5px}
+.feed time{font:500 12px var(--mono);color:var(--ink-3);min-width:56px}
+.unpub{font:600 11.5px var(--sans);color:var(--magenta-ink);background:var(--magenta-soft);padding:3px 8px;border-radius:999px;white-space:nowrap}
+
+/* comments */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.citem{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:14px 16px;border-bottom:1px solid var(--rule)}
+.citem:last-child{border-bottom:0}
+.pinno{width:24px;height:24px;border-radius:50% 50% 50% 4px;background:var(--cyan);color:#0B0D10;display:grid;place-items:center;font:700 11px var(--mono)}
+.pinno.res{background:var(--ink-3);color:var(--paper)}
+.cmeta{font-size:12.5px;color:var(--ink-3);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cbody{margin:4px 0 8px;font-size:14.5px}
+.thumb{width:64px;height:44px;border-radius:4px;border:1px solid var(--rule);display:inline-block;position:relative;overflow:hidden}
+.th1{background:linear-gradient(135deg,#1b1b1f 0 45%,#2b2b33 45%)}.th1::after{content:"";position:absolute;left:8px;right:8px;bottom:8px;height:8px;border-radius:3px;background:#d4ff00}
+.th2{background:linear-gradient(160deg,#5b2bd8,#e64a8a)}.th3{background:linear-gradient(160deg,#f0f0f0,#c9ced8)}
+.triage{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 12px;border-radius:var(--r);background:var(--sheet-2);border:1px solid var(--rule);font-size:13px;margin-bottom:8px}
+.reply{margin-top:8px;padding:8px 10px;border-radius:var(--r);background:var(--good-soft);font-size:13px}
+
+/* sync */
+.sync{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule);align-items:center}
+.srow:last-child{border-bottom:0}.srow b{font-size:14px;font-weight:600}
+.shead{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--rule)}.shead h3{font-size:15px;flex:1}
+
+/* plan */
+.plan{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
+.pstep{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;padding:11px 14px;border-bottom:1px solid var(--rule);align-items:center}
+.pstep.on{background:var(--sheet-2)}
+.pstep .no{font:600 12px var(--mono);color:var(--ink-3)}
+.pstep b{font-size:13.5px;font-weight:600;display:block}.pstep small{font-size:12px;color:var(--ink-3)}
+.cp{font:600 10px var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--magenta-soft);color:var(--magenta-ink)}
+.doc{padding:20px 22px;display:grid;gap:12px}.doc h3{font-size:18px}
+.doc table{border-collapse:collapse;width:100%;font-size:13px}
+.doc th,.doc td{border-bottom:1px solid var(--rule);padding:6px 8px;text-align:left;vertical-align:top}
+.doc th{font-size:12px;color:var(--ink-2);background:var(--sheet-2)}
+.src{font:600 10.5px var(--mono);padding:1px 5px;border-radius:3px}
+.src.prd{background:var(--cyan-soft);color:var(--cyan-ink)}.src.res{background:var(--good-soft);color:var(--good)}.src.as{background:var(--yellow-soft);color:var(--yellow-ink)}
+.flow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12.5px}
+.flow span{padding:5px 9px;border:1px solid var(--rule-2);border-radius:var(--r);background:var(--sheet)}
+.flow span.d{border-style:dashed;border-color:var(--magenta);color:var(--magenta-ink)}
+.rule{font-size:12.5px;padding:8px 10px;border-radius:var(--r);background:var(--yellow-soft);color:var(--yellow-ink)}
+
+/* connect */
+.svc{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:14px;padding:14px 16px;border-bottom:1px solid var(--rule);align-items:center}
+.svc:last-child{border-bottom:0}
+.svc .lg{width:40px;height:40px;border-radius:var(--r);background:var(--sheet-2);border:1px solid var(--rule);display:grid;place-items:center;font:700 13px var(--mono)}
+.svc .stt{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2)}
+.wizard{padding:18px;display:grid;gap:12px}
+.wsteps{display:flex;gap:6px;font:600 11.5px var(--mono);color:var(--ink-3)}
+.wsteps span{padding:3px 8px;border-radius:999px;border:1px solid var(--rule)}
+.wsteps span.on{background:var(--key);color:var(--on-key);border-color:var(--key)}
+.field{display:grid;gap:5px;font-size:13px}
+.field input{border:1px solid var(--rule-2);border-radius:var(--r);padding:8px 10px;background:var(--sheet);color:var(--ink);font:13px var(--mono)}
+
+/* design: Lovable-like workspace */
+#v-design.on{display:grid;grid-template-columns:340px minmax(0,1fr);height:calc(100dvh - 5px)}
+.chatcol{display:flex;flex-direction:column;border-right:1px solid var(--rule);background:var(--sheet);min-height:0}
+.chathead{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--rule)}
+.chathead b{font-size:14px;flex:1}
+.msgs{flex:1;overflow:auto;padding:14px;display:grid;gap:10px;align-content:start}
+.msg{padding:10px 12px;border-radius:var(--r);font-size:13.5px;border:1px solid var(--rule);background:var(--sheet)}
+.msg.me{background:var(--cyan-soft);border-color:transparent;justify-self:end;max-width:88%}
+.msg ol{margin:6px 0 0;padding-left:18px}
+.composer{border-top:1px solid var(--rule);padding:12px;display:grid;gap:8px}
+.composer textarea{width:100%;min-height:76px;resize:none;border:1px solid var(--rule-2);border-radius:var(--r);padding:10px;background:var(--sheet);color:var(--ink);font:inherit;font-size:14px}
+.att{display:flex;gap:6px;align-items:center}
+.att .thumb{width:44px;height:32px}
+.addimg{width:32px;height:32px;border:1px dashed var(--rule-2);border-radius:var(--r);display:grid;place-items:center;color:var(--ink-3);background:none;cursor:pointer}
+.stage{display:flex;flex-direction:column;min-width:0;min-height:0}
+.stagebar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--rule);background:color-mix(in srgb,var(--sheet) 80%,transparent);flex-wrap:nowrap;white-space:nowrap}
+.stagebar select{border:1px solid var(--rule-2);border-radius:var(--r);background:var(--sheet);padding:5px 8px;font-size:13px;flex:0 1 190px;min-width:120px}
+.stagebar .sp{flex:1}
+.canvas{flex:1;position:relative;display:grid;place-items:center;overflow:auto;padding:24px;background-image:radial-gradient(var(--rule) 1px,transparent 1px);background-size:18px 18px}
+.toolpill{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:2px;padding:4px;border-radius:12px;border:1px solid var(--rule);background:var(--sheet);box-shadow:var(--shadow)}
+.toolpill button{border:0;background:none;padding:6px 10px;border-radius:8px;font-size:12.5px;color:var(--ink-2);cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.toolpill button.on{background:var(--cyan-soft);color:var(--cyan-ink);box-shadow:inset 0 0 0 1px var(--cyan)}
+.srcbadge{position:absolute;top:14px;left:14px}
+.livewarn{position:absolute;top:14px;right:14px;max-width:260px;font-size:12.5px;padding:8px 10px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet)}
+
+/* device */
+.phone{width:300px;border-radius:36px;background:#101114;padding:10px;box-shadow:var(--shadow);margin-bottom:40px}
+.phone.desk{width:min(900px,100%);border-radius:12px;padding:8px}
+.phone.desk .scr{height:520px;border-radius:6px}
+.scr{border-radius:28px;overflow:hidden;background:#101010;color:#fff;height:600px;position:relative;font-family:system-ui,sans-serif}
+.scr .sb{display:flex;justify-content:space-between;padding:8px 18px 0;font-size:11px;font-weight:600}
+.scr .tb{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px}
+.scr .tb b{font:800 19px system-ui;letter-spacing:-.02em}
+.scr .tb i{display:inline-block;width:16px;height:16px;border-radius:4px;background:#fff;opacity:.9;margin-left:12px}
+.scr .tb i.av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#ef4444)}
+.scr .chips{display:flex;gap:6px;padding:4px 14px}
+.scr .chips span{font-size:10.5px;padding:5px 10px;border-radius:999px;background:#252525;font-weight:600}
+.scr .chips span.on{background:#d4ff00;color:#111}
+.scr h5{margin:12px 14px 6px;font-size:13px}
+.scr .rail{display:flex;gap:8px;padding:0 14px;overflow:hidden}
+.scr .card{flex:none;width:92px}.scr .art{width:92px;height:92px;border-radius:8px}
+.a1{background:linear-gradient(135deg,#c2410c,#fbbf24)}.a2{background:linear-gradient(135deg,#a3a3a3,#e5e5e5)}.a3{background:linear-gradient(135deg,#7f1d1d,#111)}.a4{background:linear-gradient(135deg,#6d28d9,#ec4899)}.a5{background:linear-gradient(135deg,#0e7490,#22d3ee)}.a6{background:linear-gradient(135deg,#365314,#a3e635)}
+.scr .card small{display:block;font-size:10px;margin-top:4px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scr .card em{display:block;font-size:9px;color:#9a9a9a;font-style:normal}
+.scr .dock{position:absolute;left:0;right:0;bottom:0;background:#101010}
+.scr .mini{margin:0 8px 4px;padding:6px 8px;border-radius:8px;background:#1f1f1f;display:flex;align-items:center;gap:8px;font-size:11px}
+.scr .mini i{width:28px;height:28px;border-radius:4px;background:linear-gradient(135deg,#0ea5e9,#f0f9ff)}
+.scr .mini b{flex:1}.scr .mini s{width:26px;height:26px;border-radius:50%;background:#fff;display:inline-block}
+.scr .nav{display:flex;justify-content:space-around;padding:6px 0 10px;font-size:9.5px;color:#bbb}
+.scr .nav span{display:grid;justify-items:center;gap:2px}
+.scr .nav span::before{content:"";width:16px;height:16px;border-radius:4px;background:#bbb;display:block}
+.scr .nav span.on{color:#d4ff00}.scr .nav span.on::before{background:#d4ff00}
+.scr .pin{position:absolute;width:22px;height:22px;border-radius:50% 50% 50% 4px;background:var(--cyan);border:2px solid #fff;color:#0B0D10;font:700 10px var(--mono);display:grid;place-items:center;transform:translate(-50%,-100%)}
+.scr .flash{outline:2px solid var(--cyan);outline-offset:2px;border-radius:8px}
+.scr.live .flash{outline:0}
+
+/* prototype comments, restyled */
+.protowrap{display:grid;grid-template-columns:auto 340px;gap:18px;align-items:start;justify-content:center;padding:18px;border:1px dashed var(--rule-2);border-radius:var(--r)}
+.pbanner{grid-column:1/-1;display:flex;justify-content:center;gap:6px;font-size:12px;padding:6px;border-radius:var(--r);background:var(--key);color:var(--on-key)}
+.ptool{display:flex;gap:2px;padding:4px;border-radius:12px;border:1px solid var(--rule);background:var(--sheet);box-shadow:var(--shadow);width:max-content;margin:0 auto 10px}
+.ptool button{border:0;background:none;padding:6px 10px;border-radius:8px;font-size:12.5px;color:var(--ink-2)}
+.ptool button.on{background:var(--key);color:var(--on-key)}
+.ptool button.acc{box-shadow:inset 0 0 0 1px var(--cyan);color:var(--cyan-ink);background:var(--cyan-soft)}
+.cpanel{padding:14px;display:grid;gap:10px}
+.cform{border:1px solid var(--cyan);border-radius:var(--r);padding:12px;display:grid;gap:8px}
+.cform input,.cform textarea{border:1px solid var(--rule-2);border-radius:var(--r);padding:7px 9px;background:var(--sheet);color:var(--ink);font:13px var(--sans);width:100%}
+footer.foot{margin-top:28px;font-size:12px;color:var(--ink-3)}
+@media (max-width:980px){.shell{grid-template-columns:1fr}.sidenav{position:static;height:auto}.grid2,.plan,.sync,.protowrap{grid-template-columns:1fr}#v-design.on{grid-template-columns:1fr;height:auto}.pipe{grid-template-columns:1fr}.step+.step{border-left:1px solid var(--rule);border-top:0}.tally{flex-wrap:wrap}.page{padding:18px 16px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+ <symbol id="logo" viewBox="0 0 32 32"><circle cx="16" cy="16" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="4" fill="currentColor"/><path d="M16 1v8M16 23v8M1 16h8M23 16h8" stroke="currentColor" stroke-width="2"/></symbol>
+ <symbol id="b-figma-color" viewBox="0 0 256 384"><path fill="#0acf83" d="M64 384c35.328 0 64-28.672 64-64v-64H64c-35.328 0-64 28.672-64 64s28.672 64 64 64"/><path fill="#a259ff" d="M0 192c0-35.328 28.672-64 64-64h64v128H64c-35.328 0-64-28.672-64-64"/><path fill="#f24e1e" d="M0 64C0 28.672 28.672 0 64 0h64v128H64C28.672 128 0 99.328 0 64"/><path fill="#ff7262" d="M128 0h64c35.328 0 64 28.672 64 64s-28.672 64-64 64h-64z"/><path fill="#1abcfe" d="M256 192c0 35.328-28.672 64-64 64s-64-28.672-64-64s28.672-64 64-64s64 28.672 64 64"/></symbol>
+ <symbol id="i-pipe" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 12h3M14 12h3"/></symbol>
+ <symbol id="i-plan" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/></symbol>
+ <symbol id="i-design" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></symbol>
+ <symbol id="i-review" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></symbol>
+ <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 8a8 8 0 0 0-14-3L4 7M4 16a8 8 0 0 0 14 3l2-2"/><path d="M4 3v4h4M20 21v-4h-4"/></symbol>
+ <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/></symbol>
+ <symbol id="i-proto" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+ <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+ <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+ <symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+ <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></symbol>
+ <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+ <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+ <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+ <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/></symbol>
+ <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+ <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></symbol>
+ <symbol id="i-panel" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M15 10l-2 2 2 2"/></symbol>
+ <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+</defs></svg>
+<div class="strip" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i><i class="c t75"></i><i class="m t75"></i><i class="y t75"></i><i class="k t75"></i><i class="c t50"></i><i class="m t50"></i><i class="y t50"></i><i class="k t50"></i><i class="c t25"></i><i class="m t25"></i><i class="y t25"></i><i class="k t25"></i></div>
+<div class="glow" aria-hidden="true"><i class="g1"></i><i class="g2"></i></div>
+
+<div class="shell">
+ <aside class="sidenav" aria-label="Dashboard">
+  <div class="brandrow">
+   <a class="brand" href="#" aria-label="Atomica, Home">
+    <span class="mark" aria-hidden="true"><svg class="reg c"><use href="#logo"/></svg><svg class="reg m"><use href="#logo"/></svg><svg class="reg k"><use href="#logo"/></svg></span>
+    <span class="word"><b>Atomica</b><small>AI-ready design systems</small></span>
+   </a>
+   <button class="iconbtn sq collapse" id="collapse" aria-label="Collapse the menu" title="Collapse the menu"><svg class="ic" style="width:16px;height:16px"><use href="#i-panel"/></svg></button>
+  </div>
+  <div class="for-figma"><svg viewBox="0 0 256 384" aria-hidden="true"><use href="#b-figma-color"/></svg><span>Builds and audits design systems in <b>Figma</b> with Claude</span></div>
+  <div>
+   <div class="side-title">Music App Android</div>
+   <nav class="side-nav" aria-label="Project">
+    <button data-v="pipeline" data-tip="Pipeline" class="on"><svg class="ic"><use href="#i-pipe"/></svg><span class="label">Pipeline</span></button>
+    <button data-v="plan" data-tip="Plan"><svg class="ic"><use href="#i-plan"/></svg><span class="label">Plan</span><span class="count y">1</span></button>
+    <button data-v="design" data-tip="Design"><svg class="ic"><use href="#i-design"/></svg><span class="label">Design</span></button>
+    <button data-v="review" data-tip="Review"><svg class="ic"><use href="#i-review"/></svg><span class="label">Review</span><span class="count">3</span></button>
+    <button data-v="sync" data-tip="Sync"><svg class="ic"><use href="#i-sync"/></svg><span class="label">Sync</span><span class="count y">2</span></button>
+    <button data-v="connect" data-tip="Connect services"><svg class="ic"><use href="#i-plug"/></svg><span class="label">Connect services</span></button>
+    <button data-v="proto" data-tip="Prototype comments UI"><svg class="ic"><use href="#i-proto"/></svg><span class="label">Prototype comments UI</span></button>
+   </nav>
+  </div>
+  <div class="side-foot">
+   <span class="pill">Mockup: nothing runs</span>
+   <button class="iconbtn theme" id="theme" aria-label="Switch light or dark"><svg class="ic sun"><use href="#i-sun"/></svg><svg class="ic moon"><use href="#i-moon"/></svg></button>
+  </div>
+ </aside>
+
+ <main class="main">
+
+ <section class="view on page" id="v-pipeline">
+  <div class="crumbs">Projects / Music App Android</div>
+  <header class="page-head">
+   <div><h1>Pipeline</h1><p class="sub">Where the project is, and the one thing to do next.</p></div>
+   <div class="right"><span class="mock-tag">mockup</span><button class="ghost sm"><svg class="ic"><use href="#i-ext"/></svg>Open live prototype</button></div>
+  </header>
+  <div class="pipe">
+   <div class="step done"><span class="n">01</span><h3>Design System</h3><span class="st"><svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg>Done</span><p>40 components, 255 tokens. Storybook 40/40 in parity.</p></div>
+   <div class="step done"><span class="n">02</span><h3>Screens (Figma)</h3><span class="st"><svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg>Done</span><p>Listen flow: 8 screens, Light and Dark. Last export 22 Oct.</p></div>
+   <div class="step run"><span class="n">03</span><h3>Live Prototype</h3><span class="st"><span class="dot run"></span>Publishing…</span><p>Building for GitHub Pages. Check: 64 screen views, 0 problems.</p></div>
+   <div class="step wait"><span class="n">04</span><h3>Review (Comments)</h3><span class="st"><span class="dot bad"></span>Waiting on you</span><p>3 open comments, 1 triaged and waiting for your approval.</p></div>
+   <div class="step prob"><span class="n">05</span><h3>Sync</h3><span class="st"><span class="dot wait"></span>2 pending</span><p>1 change in the prototype is not in Figma. 1 Figma edit is not in Storybook.</p></div>
+  </div>
+  <div class="next">
+   <div class="t"><span class="kicker">Next step</span><b>Approve the triage of Ahmed's comment on Now Playing</b><span class="muted" style="font-size:13.5px">Proposed: the Share button becomes the Tonal style (DS variant, no new token).</span></div>
+   <button class="primary big" data-go="review">Open Review<svg class="ic"><use href="#i-arrow"/></svg></button>
+  </div>
+  <dl class="tally">
+   <div><dt>Fidelity</dt><dd>98.8%</dd></div>
+   <div class="mag"><dt>Open comments</dt><dd>3</dd></div>
+   <div class="warn"><dt>Pending Figma sync</dt><dd>1</dd></div>
+   <div class="live"><dt>Code check</dt><dd>0/0</dd></div>
+  </dl>
+  <div class="grid2">
+   <div class="sheet panel">
+    <div class="section-title">Project status</div>
+    <dl class="kv">
+     <dt>Live link</dt><dd><span class="mono">abdulsalahuddin94-dev.github.io/atomica-live-prototype-test</span></dd>
+     <dt>Last publish</dt><dd>Today 12:40 · build 6aa6a73</dd>
+     <dt>Local preview</dt><dd><span class="dot good"></span> localhost:5190 · <span class="unpub">2 unpublished changes</span></dd>
+     <dt>Platforms</dt><dd>Compose · SwiftUI · Flutter · React Native · React</dd>
+     <dt>Languages</dt><dd>EN · AR (79 strings, 0 untranslated)</dd>
+    </dl>
+    <div class="actions"><button class="primary sm">Publish</button><button class="ghost sm">Build &amp; check</button><button class="ghost sm" data-go="design">Open Design</button></div>
+   </div>
+   <div class="sheet panel">
+    <div class="section-title">Activity</div>
+    <div class="feed">
+     <div><time>12:40</time><span>Published: Explore - Full without "Discover What's New".</span></div>
+     <div><time>12:31</time><span>Comment by Ahmed resolved with a reply.</span></div>
+     <div><time>11:52</time><span>New comment on Explore - Viewport (Ahmed).</span></div>
+     <div><time>09:58</time><span>Top App Bar fixed in Storybook (actions at the right edge).</span></div>
+    </div>
+   </div>
+  </div>
+ </section>
+
+ <section class="view page" id="v-plan">
+  <div class="crumbs">Projects / Music App Android</div>
+  <header class="page-head">
+   <div><h1>Plan</h1><p class="sub">From PRD and research to approved flows and screen specs, before anything is built.</p></div>
+   <div class="right"><span class="mock-tag">mockup</span><button class="ghost sm">Inputs: PRD.pdf, 3 research files, 2 meeting notes, 12 screenshots</button></div>
+  </header>
+  <div class="plan">
+   <div class="sheet" style="overflow:hidden">
+    <div class="pstep"><span class="no">00</span><span><b>Input digest</b><small>PRD, research, meetings read</small></span><span class="chip good">done</span></div>
+    <div class="pstep"><span class="no">01</span><span><b>Users and jobs</b><small>3 personas, 9 jobs</small></span><span class="chip good">done</span></div>
+    <div class="pstep"><span class="no">02</span><span><b>Information architecture</b><small>sitemap, navigation</small></span><span class="cp">checkpoint ✓</span></div>
+    <div class="pstep on"><span class="no">03</span><span><b>Flows</b><small>Playlist details · state matrix</small></span><span class="cp">checkpoint</span></div>
+    <div class="pstep"><span class="no">04</span><span><b>Screen specs</b><small>DS components per section</small></span><span class="chip">next</span></div>
+    <div class="pstep"><span class="no">05</span><span><b>Gaps and plan</b><small>Code first or Figma first</small></span><span class="cp">checkpoint</span></div>
+    <div class="pstep" style="border:0"><span class="no">06</span><span><b>Usability pre-check</b><small>Nielsen heuristics</small></span><span class="chip">later</span></div>
+   </div>
+   <div class="sheet doc">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h3 style="flex:1">03 · Flow: Playlist details</h3><span class="cp">checkpoint: waiting on you</span></div>
+    <div class="flow"><span>Library</span>→<span>Playlist details</span>→<span class="d">Empty playlist?</span>→<span>Now Playing</span>→<span>Queue</span></div>
+    <table>
+     <thead><tr><th>State</th><th>What the user sees</th><th>DS components</th><th>Source</th></tr></thead>
+     <tbody>
+      <tr><td>Default</td><td>Header with artwork, Play and Shuffle, 469 songs</td><td>Playlist App Bar, Button, Playlist List Item</td><td><span class="src prd">PRD 4.2</span></td></tr>
+      <tr><td>Empty</td><td>"Add songs to this playlist" with one button</td><td>List Header, Button</td><td><span class="src res">Research R2</span></td></tr>
+      <tr><td>Offline</td><td>Downloaded songs only, others greyed</td><td>Playlist List Item (Disabled)</td><td><span class="src as">assumption</span></td></tr>
+      <tr><td>Loading</td><td>Skeleton rows</td><td><b style="color:var(--magenta-ink)">gap: Skeleton (missing in DS)</b></td><td><span class="src as">assumption</span></td></tr>
+     </tbody>
+    </table>
+    <div class="rule">Glossary: Playlist = قائمة تشغيل · Shuffle = تشغيل عشوائي · Queue = قائمة الانتظار</div>
+    <div class="actions"><button class="primary sm">Approve flow</button><button class="ghost sm">Ask for changes</button><button class="ghost sm">Open the .md file</button></div>
+   </div>
+  </div>
+ </section>
+
+ <section class="view" id="v-design">
+  <div class="chatcol">
+   <div class="chathead"><b>Music App Android · Design</b><span class="mock-tag">mockup</span></div>
+   <div class="msgs">
+    <div class="msg me">Add a "Recently added" rail under For You on Explore, 6 cards, same card as "Your new music". Arabic too.<div class="att" style="margin-top:6px"><span class="thumb th2"></span></div></div>
+    <div class="msg"><b>Built on Explore - Full (local preview).</b><ol><li>Section Header "Recently added" + Media Card × 6</li><li>Spacing token spacing16, like the other rails</li><li>New string recently_added, EN + AR</li></ol><div class="actions" style="margin-top:8px"><button class="primary sm">Publish online</button><button class="ghost sm">Undo</button><button class="ghost sm">Show changes</button></div></div>
+    <div class="msg me">Make the cards a bit smaller on that rail only</div>
+    <div class="msg"><b>Not possible without a DS change.</b> Media Card has the sizes Default and Large only. Options: use Default here (no change) or add a Small size to the DS (Figma + Storybook, then publish).<div class="actions" style="margin-top:8px"><button class="ghost sm">Keep Default</button><button class="ghost sm">Add Small to the DS</button></div></div>
+   </div>
+   <div class="composer">
+    <textarea aria-label="Ask Atomica">Describe a screen, a flow or a change…</textarea>
+    <div class="actions">
+     <button class="addimg" aria-label="Add an image" title="Add an image or paste one with Ctrl+V">+</button>
+     <span class="note" style="font-size:12px">Ctrl+V to paste a screenshot</span>
+     <span style="flex:1"></span>
+     <div class="seg"><button class="on">Code first</button><button>Figma first</button></div>
+     <button class="primary sm" aria-label="Build"><svg class="ic" style="width:15px;height:15px"><use href="#i-send"/></svg>Build</button>
+    </div>
+    <span class="note" style="font-size:12px">Only design-system components and tokens. A missing component becomes a DS gap first.</span>
+   </div>
+  </div>
+  <div class="stage">
+   <div class="stagebar">
+    <div class="seg" id="lv"><button class="on" data-lv="local">Local</button><button data-lv="live">Live</button></div>
+    <select aria-label="Screen"><option>Explore - Full</option><option>Explore - Viewport</option><option>Search &amp; Discover - Full</option><option>Library - Music</option><option>Library - Podcasts</option><option>Now Playing</option><option>Lyrics</option><option>Playlist details (new)</option></select>
+    <div class="seg" id="dev"><button class="on" data-d="phone" aria-label="Phone" title="Phone"><svg class="ic" style="width:15px;height:15px"><use href="#i-phone"/></svg></button><button data-d="desk" aria-label="Desktop" title="Desktop"><svg class="ic" style="width:15px;height:15px"><use href="#i-monitor"/></svg></button></div>
+    <button class="iconbtn sq" aria-label="Refresh" title="Refresh"><svg class="ic" style="width:15px;height:15px"><use href="#i-refresh"/></svg></button>
+    <button class="iconbtn sq" aria-label="Open in a new tab" title="Open in a new tab"><svg class="ic" style="width:15px;height:15px"><use href="#i-ext"/></svg></button>
+    <span class="sp"></span>
+    <span class="unpub" id="unpub" title="2 unpublished changes">2 unpublished</span>
+    <button class="ghost sm"><svg class="ic" style="width:15px;height:15px"><use href="#b-figma-color"/></svg>Push to Figma</button>
+    <button class="primary sm">Publish</button>
+   </div>
+   <div class="canvas">
+    <span class="chip mag srcbadge">Explore - Full · code ahead of Figma</span>
+    <div class="livewarn" id="livewarn" hidden>Live shows the published link with real comments. While a browser safety warning exists, use <b>Open in a new tab</b>.</div>
+    <div class="phone" id="device"><div class="scr" id="scr">
+     <div class="sb"><span>4:59</span><span>▮▮ ◔</span></div>
+     <div class="tb"><b>EXPLORE</b><span><i></i><i></i><i class="av"></i></span></div>
+     <div class="chips"><span class="on">All</span><span>Arabic</span><span>International</span><span>Podcasts</span></div>
+     <h5>For You</h5>
+     <div class="rail"><div class="card"><div class="art a4"></div><small>Weekly Mixtape</small><em>Your next favorites</em></div><div class="card"><div class="art a5"></div><small>Flashback</small><em>Songs you loved</em></div><div class="card"><div class="art a6"></div><small>Throwback</small><em>From your past</em></div><div class="card"><div class="art a1"></div><small>Trending</small><em>This week</em></div></div>
+     <h5 class="flash">Recently added</h5>
+     <div class="rail flash"><div class="card"><div class="art a1"></div><small>ليالى</small><em>Song · سمر طارق</em></div><div class="card"><div class="art a2"></div><small>The shadow…</small><em>Album · Yawn</em></div><div class="card"><div class="art a3"></div><small>ماتمشيش</small><em>Song · عمرو دياب</em></div><div class="card"><div class="art a4"></div><small>Just You</small><em>Playlist</em></div></div>
+     <span class="pin" style="left:64%;top:47%">2</span>
+     <div class="dock"><div class="mini"><i></i><b>لو كنت غالى</b><s></s></div><div class="nav"><span class="on">Explore</span><span>Search</span><span>Connect</span><span>Library</span></div></div>
+    </div></div>
+    <div class="toolpill"><button><svg class="ic" style="width:14px;height:14px"><use href="#i-target"/></svg>Inspect</button><button class="on"><svg class="ic" style="width:14px;height:14px"><use href="#i-review"/></svg>Comment</button><button><svg class="ic" style="width:14px;height:14px"><use href="#i-code"/></svg>Code</button></div>
+   </div>
+  </div>
+ </section>
+
+ <section class="view page" id="v-review">
+  <div class="crumbs">Projects / Music App Android</div>
+  <header class="page-head">
+   <div><h1>Review</h1><p class="sub">Comments from the live prototype, triaged by Claude, applied only with your OK.</p></div>
+   <div class="right"><span class="mock-tag">mockup</span><button class="ghost sm"><svg class="ic"><use href="#i-sync"/></svg>Pull comments</button><button class="primary sm">Triage open comments</button></div>
+  </header>
+  <div class="toolbar"><div class="seg" id="rf"><button class="on" data-f="open">Open (3)</button><button data-f="resolved">Resolved (8)</button></div><span class="note">Every reply is shown to the reviewer under their comment.</span></div>
+  <div class="sheet" id="rlist">
+   <div class="citem" data-s="open"><span class="pinno">1</span><div>
+    <div class="cmeta"><b style="color:var(--ink)">Ahmed</b><span>12:14</span><span class="chip">Now Playing</span><span class="chip">Icon Button · 27:868</span><span class="chip">Dark / EN · desktop</span></div>
+    <p class="cbody">زرار الشير مش باين كفاية جنب الكلام، خليه أوضح</p>
+    <div style="margin-bottom:8px"><span class="thumb th1"></span></div>
+    <div class="triage"><span class="chip cyan">fix in screen</span><b>Proposal:</b> Share Icon Button Style Standard → Tonal (DS variant, no new token). Now Playing only.</div>
+    <div class="actions"><button class="primary sm">Apply online</button><button class="ghost sm danger">Reject</button><button class="ghost sm">Ask</button><button class="ghost sm" data-go="design">Show on screen</button></div>
+   </div></div>
+   <div class="citem" data-s="open"><span class="pinno">2</span><div>
+    <div class="cmeta"><b style="color:var(--ink)">Sara</b><span>11:58</span><span class="chip">Explore - Full</span><span class="chip">Section Header · 27:1513</span><span class="chip">Light / AR · phone</span></div>
+    <p class="cbody">The "More" buttons feel heavy in Arabic, can they be text links?</p>
+    <div class="triage"><span class="chip mag">decision for you</span><b>Against DS:</b> Section Header uses Button Neutral. A text style needs a new Button variant (DS change, publish + Accept updates).</div>
+    <div class="actions"><button class="primary sm">Approve DS change</button><button class="ghost sm danger">Reject</button><button class="ghost sm">Ask</button></div>
+   </div></div>
+   <div class="citem" data-s="open"><span class="pinno">3</span><div>
+    <div class="cmeta"><b style="color:var(--ink)">Ahmed</b><span>11:40</span><span class="chip">Library - Podcasts</span><span class="chip">no element</span><span class="chip">Dark / EN · desktop</span></div>
+    <p class="cbody">Is "Continue playing" sorted by last played?</p>
+    <div class="triage"><span class="chip">info / question</span>Reply only: yes, by last played (PRD 5.1). No change.</div>
+    <div class="actions"><button class="primary sm">Reply &amp; close</button><button class="ghost sm">Edit reply</button></div>
+   </div></div>
+   <div class="citem" data-s="resolved" hidden><span class="pinno res">4</span><div>
+    <div class="cmeta"><b style="color:var(--ink)">Ahmed</b><span>Yesterday</span><span class="chip">Explore - Full</span><span class="chip good">resolved</span></div>
+    <p class="cbody">شيل سيكشن Discover What's New</p>
+    <div class="reply"><b>Design team:</b> Applied in the prototype: the section is removed from Explore - Full (Figma sync pending).</div>
+   </div></div>
+   <div class="citem" data-s="resolved" hidden><span class="pinno res">5</span><div>
+    <div class="cmeta"><b style="color:var(--ink)">Ahmed</b><span>Yesterday</span><span class="chip">Explore - Viewport</span><span class="chip good">resolved</span></div>
+    <p class="cbody">ماتعملش مساحة كبيرة غير مفهومة في الأسكرول</p>
+    <div class="reply"><b>Design team:</b> Viewport screens no longer scroll; they match Figma.</div>
+   </div></div>
+  </div>
+ </section>
+
+ <section class="view page" id="v-sync">
+  <div class="crumbs">Projects / Music App Android</div>
+  <header class="page-head">
+   <div><h1>Sync</h1><p class="sub">What differs between the prototype, Figma and Storybook. Nothing moves without your click.</p></div>
+   <div class="right"><span class="mock-tag">mockup</span><span class="pill"><span class="dot good"></span>FigCli connected · Brownfield Design</span></div>
+  </header>
+  <div class="sync">
+   <div class="sheet">
+    <div class="shead"><h3>In the prototype, not in Figma</h3><button class="primary sm">Push all to Figma</button></div>
+    <div class="srow"><div><b>Explore - Full: "Discover What's New" removed</b><div class="cmeta"><span>comment by Ahmed</span><span>code first · 25 Oct</span><span class="mono">overrides.json</span></div></div><button class="ghost sm">Push to Figma</button></div>
+    <div class="srow"><div><b>Playlist details (new screen, Default + Empty)</b><div class="cmeta"><span>Design prompt</span><span>code first · today</span></div></div><button class="ghost sm">Push to Figma</button></div>
+   </div>
+   <div class="sheet">
+    <div class="shead"><h3>In Figma, not in the prototype or Storybook</h3><button class="primary sm">Pull all</button></div>
+    <div class="srow"><div><b>DS file: 3 Figma versions since the last Storybook sync</b><div class="cmeta"><span>Figma version history</span><span>25 Oct 09:12 · Abdulrahman</span></div></div><button class="ghost sm">Pull from Figma</button></div>
+    <div class="srow"><div><b>Library - Music: playlist row spacing 12 → 16</b><div class="cmeta"><span>Design file edit</span><span>24 Oct</span></div></div><button class="ghost sm">Pull from Figma</button></div>
+   </div>
+  </div>
+  <p class="note" style="margin-top:12px">After a push: Figma audit, re-export, the override becomes "synced" and the screen's source goes back to Figma.</p>
+ </section>
+
+ <section class="view page" id="v-connect">
+  <div class="crumbs">Settings</div>
+  <header class="page-head">
+   <div><h1>Connect services</h1><p class="sub">Once per computer. Keys stay on this computer; nothing is pasted in a chat.</p></div>
+   <div class="right"><span class="mock-tag">mockup</span></div>
+  </header>
+  <div class="grid2">
+   <div class="sheet">
+    <div class="svc"><span class="lg">Fg</span><div><b>Figma (FigCli Yolo)</b><div class="stt"><span class="dot bad"></span>Not connected: Figma updated, run connect again (as administrator)</div></div><button class="primary sm">Connect</button></div>
+    <div class="svc"><span class="lg">GH</span><div><b>GitHub (gh)</b><div class="stt"><span class="dot good"></span>Signed in as abdulsalahuddin94-dev</div></div><button class="ghost sm">Manage</button></div>
+    <div class="svc"><span class="lg">Sb</span><div><b>Supabase (comments and images)</b><div class="stt"><span class="dot good"></span>atomica-prototype-test · schema up to date</div></div><button class="ghost sm">Manage</button></div>
+    <div class="svc"><span class="lg">SB</span><div><b>Storybook MCP</b><div class="stt"><span class="dot wait"></span>Installed, not running (starts with the project)</div></div><button class="ghost sm">Start</button></div>
+    <div class="svc"><span class="lg">Pw</span><div><b>Playwright (checks)</b><div class="stt"><span class="dot good"></span>Chrome found</div></div><button class="ghost sm">Test</button></div>
+   </div>
+   <div class="sheet wizard">
+    <div class="wsteps"><span>1 Account</span><span>2 Project</span><span class="on">3 Keys</span><span>4 Check</span></div>
+    <h3 style="font-size:16px">Supabase: your keys, on this computer</h3>
+    <p class="muted" style="font-size:13.5px">Saved in your user folder (.atomica/supabase.env), never in a project or a chat. The publishable key is public by design; the secret key is used only by this computer.</p>
+    <label class="field">Project URL<input value="https://ihflajwbpwijyvcikesz.supabase.co" readonly></label>
+    <label class="field">Publishable key<input value="sb_publishable_••••••••••••" readonly></label>
+    <label class="field">Secret key<input value="sb_secret_••••••••••••" readonly></label>
+    <div class="actions" style="color:var(--good);font-size:13px"><svg class="ic"><use href="#i-check"/></svg>Connection works · comments table found · storage bucket found</div>
+    <div class="actions"><button class="primary sm">Save and finish</button><button class="ghost sm">Back</button></div>
+   </div>
+  </div>
+ </section>
+
+ <section class="view page" id="v-proto">
+  <div class="crumbs">What reviewers see on the live link</div>
+  <header class="page-head">
+   <div><h1>Prototype comments, Atomica style</h1><p class="sub">The same comment UI as today, in the dashboard's colours and type.</p></div>
+   <div class="right"><span class="mock-tag">mockup</span></div>
+  </header>
+  <div class="protowrap">
+   <div class="pbanner"><b>Design prototype by Atomica</b><span>· not a real app · no login</span></div>
+   <div>
+    <div class="ptool"><button class="on">Light</button><button>Dark</button><button class="on">EN</button><button>AR</button><button>Inspect</button><button>Code</button><button class="acc">Comment</button></div>
+    <div class="phone" style="margin-bottom:0"><div class="scr">
+     <div class="sb"><span>5:00</span><span>▮▮ ◔</span></div>
+     <div class="tb"><b>NOW PLAYING</b><span><i></i></span></div>
+     <div style="margin:18px auto 0;width:200px;height:200px;border-radius:12px" class="a2"></div>
+     <h5 style="font-size:17px;margin-top:22px">كيفك ع فراقى</h5>
+     <p style="margin:0 14px;font-size:11px;color:#aaa">محمد شاكر وفضل شاكر</p>
+     <span class="pin" style="left:80%;top:60%">1</span>
+     <div style="position:absolute;left:72%;top:58%;width:36px;height:36px;border-radius:50%" class="flash"></div>
+     <div class="dock"><div class="nav"><span>Lyrics</span><span>Queue</span><span>Audio</span></div></div>
+    </div></div>
+   </div>
+   <div class="sheet cpanel">
+    <div style="display:flex;align-items:start;gap:8px"><div style="flex:1"><b>Comments (2)</b><div class="note">Shared with everyone who opens this link.</div></div><button class="textbtn">✕</button></div>
+    <div class="cform">
+     <b style="font-size:14px">Design feedback</b>
+     <span class="note">On Icon Button · 27:868. No login; only your comment, the optional name and images are saved.</span>
+     <input placeholder="Name (optional)" value="Ahmed">
+     <textarea rows="3">زرار الشير مش باين كفاية جنب الكلام، خليه أوضح</textarea>
+     <div class="att"><span class="thumb th1"></span><button class="addimg">+</button></div>
+     <div class="actions" style="justify-content:flex-end"><button class="ghost sm">Cancel</button><button class="primary sm">Post</button></div>
+    </div>
+    <div class="citem" style="padding:10px 0"><span class="pinno res">2</span><div><div class="cmeta"><b style="color:var(--ink)">Ahmed</b><span>Yesterday</span></div><p class="cbody" style="font-size:13.5px">ماتعملش مساحة كبيرة غير مفهومة في الأسكرول</p><div class="reply"><b>Design team:</b> Viewport screens no longer scroll; they match Figma.</div></div></div>
+   </div>
+  </div>
+  <footer class="foot">Atomica dashboard · mockups for review (static: buttons do nothing). Sample data from the Music App Android trial.</footer>
+ </section>
+ </main>
+</div>
+<script>
+const views=[...document.querySelectorAll('.view')],navs=[...document.querySelectorAll('.side-nav button')];
+function show(v){views.forEach(e=>e.classList.toggle('on',e.id==='v-'+v));navs.forEach(b=>b.classList.toggle('on',b.dataset.v===v));window.scrollTo(0,0)}
+navs.forEach(b=>b.onclick=()=>show(b.dataset.v));
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
+const root=document.documentElement,body=document.body;
+document.getElementById('theme').onclick=()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark'};
+if(matchMedia('(prefers-color-scheme: dark)').matches)root.dataset.theme='dark';
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const col=document.getElementById('collapse');
+function rail(on){body.classList.toggle('rail',on);col.setAttribute('aria-label',on?'Expand the menu':'Collapse the menu');col.title=col.getAttribute('aria-label');store.set('atomica-rail',on?'1':'0')}
+col.onclick=()=>rail(!body.classList.contains('rail'));
+rail(store.get('atomica-rail')==='1');
+document.querySelectorAll('#rf button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#rf button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('#rlist .citem').forEach(c=>c.hidden=c.dataset.s!==b.dataset.f)});
+document.querySelectorAll('#lv button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#lv button').forEach(x=>x.classList.toggle('on',x===b));const live=b.dataset.lv==='live';document.getElementById('unpub').hidden=live;document.getElementById('livewarn').hidden=!live;document.getElementById('scr').classList.toggle('live',live)});
+document.querySelectorAll('#dev button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#dev button').forEach(x=>x.classList.toggle('on',x===b));document.getElementById('device').classList.toggle('desk',b.dataset.d==='desk')});
+document.querySelectorAll('.seg:not(#rf):not(#lv):not(#dev) button, .toolpill button').forEach(b=>b.onclick=()=>b.parentElement.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)));
+</script>
+</body>
+</html>
