@@ -271,8 +271,8 @@ async function drawSync(main, p) {
 // only queues a request for the Sync page. Code first / Figma first is asked once per project. Figma first shows the
 // chat only, no preview (Abdul, 2026-11-04): the dashboard often takes a third of the screen beside Figma.
 const MODE_TEXT = {
-  "code-first": ["Code first", "New screens and changes are built in the prototype first; Figma follows when you sync."],
-  "figma-first": ["Figma first", "Changes are designed in the Figma Design file first, then the prototype is rebuilt from it."],
+  "code-first": ["Code first", "New screens and changes are built in the prototype first; Figma follows when you sync. This page shows the chat and a live preview."],
+  "figma-first": ["Figma first", "Changes are designed in the Figma Design file first, then the prototype is rebuilt from it. This page shows the chat only: you see the design in Figma, so the dashboard can take a third of the screen beside it."],
 };
 // Sent to Claude with the first message but not shown in the conversation (only the typed request is).
 const DESIGN_CONTEXT = (p, mode, screen, where) => `Design workspace for "${p}" (My Projects/${p}), ${MODE_TEXT[mode][0].toLowerCase()}. ${mode === "code-first"
@@ -310,8 +310,9 @@ async function drawDesign(main, p) {
     try { st = await api(`/api/project/${enc}/design/mode`, { mode }); drawMode(); drawBar(); loadFrame(); if (!sessionId()) drawStarter(); if (pendingApply) { const c = pendingApply; pendingApply = null; applyNow(c); } }
     catch (e) { showError(e); }
   };
-  // Figma first: chat only (the stage stays built but hidden and empty, so switching back to Code first shows it again)
-  const chatOnly = () => st.designMode === "figma-first";
+  // The preview is shown only for Code first; Figma first (and before the mode is picked) is chat only. The stage stays
+  // built but hidden and empty, so picking Code first shows it at once.
+  const chatOnly = () => st.designMode !== "code-first";
   function drawMode() {
     main.classList.toggle("chat-only", chatOnly());
     modeSeg.replaceChildren(...Object.entries(MODE_TEXT).map(([k, [label, d]]) => el("button", { type: "button", role: "radio", class: st.designMode === k ? "on" : null, "aria-checked": String(st.designMode === k), title: d, onclick: () => setMode(k) }, label)));
@@ -337,7 +338,7 @@ async function drawDesign(main, p) {
         el("h4", {}, "How should new screens and changes start in this project?"),
         el("div", { class: "opts-list" }, Object.entries(MODE_TEXT).map(([k, [label, d]]) =>
           el("button", { type: "button", class: "opt-btn", onclick: () => setMode(k) }, el("span", { class: "l" }, label), el("span", { class: "d" }, d)))),
-        el("p", { class: "muted small" }, "You can switch it any time at the top of this panel.")));
+        el("p", { class: "muted small" }, "You can switch it any time at the top of this panel; the layout follows (Figma first: chat only, Code first: chat and preview).")));
       return;
     }
     const images = [];
@@ -370,8 +371,7 @@ async function drawDesign(main, p) {
     queueMicrotask(() => { if (pendingPrefill) prefill(pendingPrefill); });
     chatBody.replaceChildren(el("div", { class: "ws-empty" },
       el("p", {}, el("b", {}, MODE_TEXT[st.designMode][0]), `: ${MODE_TEXT[st.designMode][1]}`),
-      chatOnly() ? el("p", { class: "muted small" }, "No preview here: changes are designed in Figma, so keep Figma open beside this panel.")
-        : el("p", { class: "muted small" }, `Claude sees which screen the preview shows ("${screenName()}").`)), form);
+      chatOnly() ? null : el("p", { class: "muted small" }, `Claude sees which screen the preview shows ("${screenName()}").`)), form);
     ta.focus();
   }
   function mountChat(id) {
