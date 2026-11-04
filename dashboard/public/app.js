@@ -303,7 +303,7 @@ async function openToolPicker(sessionId, onDone) {
 
 // ---------- start a conversation ----------
 const PROMPTS = {
-  new: "Start the intake (Design_System_Intake_Skill). I want to start a new project.",
+  new: "Start the intake (Design_System_Intake_Skill). I want to start a new project with the full workflow (0.0q = Full workflow). Ask every choice with AskUserQuestion menus, as the intake says.",
   join: "Start the intake (Design_System_Intake_Skill). I want to join a team project.",
   project: (p) => `Start the intake (Design_System_Intake_Skill). Work on the existing project "${p}" (My Projects/${p}).`,
 };
@@ -552,7 +552,7 @@ function openProjectForm(p) {
         return loadProjects();
       }
       const r = await api("/api/projects", { title: input.value.trim() });
-      if ($("#proj-start").checked) return start({ prompt: `Start the intake (Design_System_Intake_Skill). I want to start a new project named "${r.title}". Its folder already exists: My Projects/${r.name} (made from the template by the dashboard), so skip creating it and continue from the next question.`, project: r.name, title: r.title });
+      if ($("#proj-start").checked) return start({ prompt: `Start the intake (Design_System_Intake_Skill). I want to start a new project named "${r.title}". Its folder already exists: My Projects/${r.name} (made from the template by the dashboard), so skip creating it and continue from the next question (0.0q = Full workflow). Ask every choice with AskUserQuestion menus, as the intake says.`, project: r.name, title: r.title });
       toast(`Added ${r.title}.`);
       loadProjects();
     } catch (e) { showError(e); }
