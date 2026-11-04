@@ -26,8 +26,17 @@ function initRail() {
   };
   let saved = null;
   try { saved = localStorage.getItem("menuRail"); } catch {}
-  set(saved === "1");
-  btn.addEventListener("click", () => set(!document.body.classList.contains("rail")));
+  // A narrow window (the dashboard at a third of the screen beside Figma) starts with the rail, so the page keeps its
+  // height; the button still opens the full menu there, and that choice is not saved over the wide-window one.
+  const narrow = matchMedia("(max-width: 960px)");
+  const apply = () => { if (narrow.matches) document.body.classList.add("rail"); else set(saved === "1"); };
+  apply();
+  narrow.addEventListener("change", apply);
+  btn.addEventListener("click", () => {
+    const on = !document.body.classList.contains("rail");
+    if (narrow.matches) document.body.classList.toggle("rail", on); else { saved = on ? "1" : "0"; set(on); }
+    btn.setAttribute("aria-label", on ? "Expand the menu" : "Collapse the menu"); btn.title = btn.getAttribute("aria-label");
+  });
   // tooltips for the rail: the label of each menu link
   for (const a of document.querySelectorAll(".side-nav a")) if (!a.dataset.tip) a.dataset.tip = a.textContent.trim();
 }
@@ -268,15 +277,16 @@ async function drawSync(main, p) {
 // ---------- Design: Lovable-like workspace ----------
 // Left: this project's design conversation (the same chat as everywhere, mounted in a panel). Right: the prototype,
 // local (Vite on this computer) or live (the published link). Publish runs tools/publish_prototype.cjs; Push to Figma
-// only queues a request for the Sync page. Code first / Figma first is asked once per project.
+// only queues a request for the Sync page. Code first / Figma first is asked once per project. Figma first shows the
+// chat only, no preview (Abdul, 2026-11-04): the dashboard often takes a third of the screen beside Figma.
 const MODE_TEXT = {
-  "code-first": ["Code first", "New screens and changes are built in the prototype first; Figma follows when you sync."],
-  "figma-first": ["Figma first", "Changes are designed in the Figma Design file first, then the prototype is rebuilt from it."],
+  "code-first": ["Code first", "New screens and changes are built in the prototype first; Figma follows when you sync. This page shows the chat and a live preview."],
+  "figma-first": ["Figma first", "Changes are designed in the Figma Design file first, then the prototype is rebuilt from it. This page shows the chat only: you see the design in Figma, so the dashboard can take a third of the screen beside it."],
 };
 // Sent to Claude with the first message but not shown in the conversation (only the typed request is).
 const DESIGN_CONTEXT = (p, mode, screen, where) => `Design workspace for "${p}" (My Projects/${p}), ${MODE_TEXT[mode][0].toLowerCase()}. ${mode === "code-first"
   ? "Build each change in the prototype first (prototype/data/overrides.json, or a code-first screen), rebuild and check it, and add it to status.json > prototype.pending_figma_sync. Do not touch Figma."
-  : "Design each change in the Figma Design file first with the saved tool (ask me before each write), audit it, then re-export and rebuild the prototype."} Rules: only the project's design-system components and tokens (its Storybook React components and data/tokens.json), never raw values; a missing component or size is a DS gap: tell me and give me the options, never invent one. The preview shows "${screen}" (${where}). My request follows.`;
+  : "Design each change in the Figma Design file first with the saved tool (ask me before each write), audit it, then re-export and rebuild the prototype."} Rules: only the project's design-system components and tokens (its Storybook React components and data/tokens.json), never raw values; a missing component or size is a DS gap: tell me and give me the options, never invent one. ${mode === "code-first" ? `The preview shows "${screen}" (${where}).` : "The dashboard shows no preview here (I look at Figma)."} My request follows.`;
 const designKey = (name) => `designChat:${name}`;
 const readStore = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } };
 const writeStore = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -306,10 +316,14 @@ async function drawDesign(main, p) {
     chatBody);
 
   const setMode = async (mode) => {
-    try { st = await api(`/api/project/${enc}/design/mode`, { mode }); drawMode(); if (!sessionId()) drawStarter(); if (pendingApply) { const c = pendingApply; pendingApply = null; applyNow(c); } }
+    try { st = await api(`/api/project/${enc}/design/mode`, { mode }); drawMode(); drawBar(); loadFrame(); if (!sessionId()) drawStarter(); if (pendingApply) { const c = pendingApply; pendingApply = null; applyNow(c); } }
     catch (e) { showError(e); }
   };
+  // The preview is shown only for Code first; Figma first (and before the mode is picked) is chat only. The stage stays
+  // built but hidden and empty, so picking Code first shows it at once.
+  const chatOnly = () => st.designMode !== "code-first";
   function drawMode() {
+    main.classList.toggle("chat-only", chatOnly());
     modeSeg.replaceChildren(...Object.entries(MODE_TEXT).map(([k, [label, d]]) => el("button", { type: "button", role: "radio", class: st.designMode === k ? "on" : null, "aria-checked": String(st.designMode === k), title: d, onclick: () => setMode(k) }, label)));
   }
   const sessionId = () => readStore(designKey(p.name))?.id || null;
@@ -333,7 +347,7 @@ async function drawDesign(main, p) {
         el("h4", {}, "How should new screens and changes start in this project?"),
         el("div", { class: "opts-list" }, Object.entries(MODE_TEXT).map(([k, [label, d]]) =>
           el("button", { type: "button", class: "opt-btn", onclick: () => setMode(k) }, el("span", { class: "l" }, label), el("span", { class: "d" }, d)))),
-        el("p", { class: "muted small" }, "You can switch it any time at the top of this panel.")));
+        el("p", { class: "muted small" }, "You can switch it any time at the top of this panel; the layout follows (Figma first: chat only, Code first: chat and preview).")));
       return;
     }
     const images = [];
@@ -366,7 +380,7 @@ async function drawDesign(main, p) {
     queueMicrotask(() => { if (pendingPrefill) prefill(pendingPrefill); });
     chatBody.replaceChildren(el("div", { class: "ws-empty" },
       el("p", {}, el("b", {}, MODE_TEXT[st.designMode][0]), `: ${MODE_TEXT[st.designMode][1]}`),
-      el("p", { class: "muted small" }, `Claude sees which screen the preview shows ("${screenName()}").`)), form);
+      chatOnly() ? null : el("p", { class: "muted small" }, `Claude sees which screen the preview shows ("${screenName()}").`)), form);
     ta.focus();
   }
   function mountChat(id) {
@@ -466,6 +480,7 @@ async function drawDesign(main, p) {
     return `${b.replace(/\/?$/, "/")}#/${view.screen}?${p}`;
   };
   function loadFrame(force) {
+    if (chatOnly()) { canvas.replaceChildren(); frame.removeAttribute("src"); delete frame.dataset.src; return; }
     const url = screenUrl();
     const sc = st.screens.find((s) => s.slug === view.screen);
     badge.hidden = !(sc?.source === "code");
@@ -1373,16 +1388,36 @@ async function editorBanner(main, p) {
   let e;
   try { e = await api(`/api/project/${enc}/github/editor`); } catch { return; }
   if (!e || e.off) return;
+  let box;
+  // Not signed in to GitHub: Start editing / Take over opens the GitHub sign-in (gh auth login --web, browser) and
+  // waits for it, then takes the project, instead of an error dialog.
+  const signInThenTake = async (action) => {
+    try {
+      const r = await api("/api/github/login", {});
+      if (!r.ok) { toast(r.message || "Could not open the GitHub sign-in."); return; }
+    } catch (err) { showError(err); return; }
+    let stop = false;
+    const wait = el("div", { class: "ed-banner free", role: "status" }, icon("i-login"),
+      el("span", {}, "Finish signing in to GitHub in your browser (press Enter in the window that opened, then paste the code it shows). You become the editor right after."),
+      el("button", { class: "ghost sm", type: "button", onclick: () => { stop = true; wait.replaceWith(box); } }, "Cancel"));
+    box.replaceWith(wait);
+    for (const until = Date.now() + 5 * 60e3; !stop && Date.now() < until;) {
+      await new Promise((ok) => setTimeout(ok, 3000));
+      let s; try { s = await api(`/api/project/${enc}/github/editor`); } catch { continue; }
+      if (s?.me) { e.me = s.me; if (!stop) { wait.replaceWith(box); act(action); } return; }
+    }
+    if (!stop) { wait.replaceWith(box); toast("GitHub sign-in did not finish. Try Start editing again."); }
+  };
   const act = async (action, extra = {}) => {
+    if (!e.me && action === "take") return signInThenTake(action);
     try {
       const r = await api(`/api/project/${enc}/github/editor`, { action, ...extra });
       toast(r.asked ? `Asked ${r.asked} to hand over. You can edit once they do.` : r.fromStale ? `${r.fromStale} had not edited for a while; you are the editor now.` : action === "take" ? "You are the editor now." : action === "handover" ? "Handed over." : "You keep editing.");
       if (r.note) toast(r.note);
       renderProjectPage(p.name, decodeURIComponent(location.hash.split("/")[3] || "pipeline"));
-    } catch (err) { showError(err); }
+    } catch (err) { if (err.code === "github_signin") return signInThenTake(action); showError(err); }
   };
   const when = (t) => (t ? fmtDate(t) : "");
-  let box;
   if (e.mine && e.request) box = el("div", { class: "ed-banner ask", role: "status" }, icon("i-users"),
     el("span", {}, el("b", {}, e.request.by), ` asks to take over this project (${when(e.request.at)}).`),
     el("button", { class: "primary sm", type: "button", onclick: () => act("handover", { toRequester: true }) }, `Hand over to ${e.request.by}`),

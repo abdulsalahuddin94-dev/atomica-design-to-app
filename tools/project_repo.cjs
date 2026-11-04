@@ -251,10 +251,10 @@ function claim(status, me, now = new Date()) {
   return status;
 }
 // Hand over: free the project (or give it straight to whoever asked).
-function handOver(status, me, toRequester = false) {
+function handOver(status, me, toRequester = false, now = new Date()) {
   if (status.current_editor?.login !== me) return { ok: false, error: 'Only the current editor hands over.' };
   const req = status.takeover_request;
-  if (toRequester && req) claim(status, req.by); else { delete status.current_editor; delete status.takeover_request; }
+  if (toRequester && req) claim(status, req.by, now); else { delete status.current_editor; delete status.takeover_request; }
   return { ok: true };
 }
 // Take over: free -> yours; stale -> yours, with a note; someone active -> a request they answer (Hand over / Keep).

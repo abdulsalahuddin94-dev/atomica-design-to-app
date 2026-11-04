@@ -16,6 +16,12 @@ body.rail .side-nav a.on::before{left:-12px}
 body.rail .collapse-btn .ic{transform:rotate(180deg)}
 body.rail .side-foot{flex-direction:column}
 body.rail .side-nav a[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);background:var(--key);color:var(--on-key);font-size:12.5px;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:40;pointer-events:none}
+/* narrow window (a third of the screen beside Figma): the rail stays a full-height column on the left */
+@media (max-width: 960px){
+  body.rail .sidenav{position:sticky;top:5px;align-self:start;height:calc(100dvh - 5px);border-bottom:0;border-right:1px solid var(--rule);gap:22px;padding:22px 12px 18px}
+  body.rail .side-nav{grid-auto-flow:row;justify-content:stretch}
+  body.rail .side-foot{margin-top:auto}
+}
 .side-nav .count{margin-left:auto;font:600 11px var(--mono);padding:1px 6px;border-radius:999px;background:var(--magenta-soft);color:var(--magenta-ink)}
 .side-nav .count.y{background:var(--yellow-soft);color:var(--yellow-ink)}
 .project-nav{display:grid;gap:2px}
@@ -168,6 +174,14 @@ main.project.design-ws{max-width:none;padding:0;height:calc(100dvh - 5px);displa
 .ws-note{position:absolute;right:14px;bottom:12px;max-width:300px;font-size:12px;color:var(--ink-2);padding:8px 10px;border:1px solid var(--rule);border-radius:var(--r);background:var(--sheet)}
 .ws-off{max-width:420px;display:grid;gap:10px;justify-items:center}
 @media (max-width:1100px){main.project.design-ws{grid-template-columns:1fr;height:auto;overflow:visible}.ws-col{border-right:0;border-bottom:1px solid var(--rule);height:70dvh}.ws-stage{height:90dvh}}
+/* the shared-project editor banner sits above both panels, not in the chat's grid cell */
+main.project.design-ws>.ed-banner{grid-column:1/-1;margin:0}
+main.project.design-ws:has(>.ed-banner):not(.chat-only){grid-template-rows:auto minmax(0,1fr)}
+/* Figma first: chat only, full height at any width (a third of the screen beside Figma); the text stays a readable measure */
+main.project.design-ws.chat-only{display:flex;flex-direction:column;height:calc(100dvh - 5px);overflow:hidden}
+main.project.design-ws.chat-only .ws-stage{display:none}
+main.project.design-ws.chat-only .ws-col{border:0;height:auto;flex:1}
+.chat-only .ws-head>*,.chat-only .ws-chat .log>*,.chat-only .ws-chat .composer,.chat-only .ws-status,.chat-only .ws-chat-foot>*,.chat-only .ws-ask,.chat-only .ws-empty,.chat-only .ws-start{width:100%;max-width:860px;margin-inline:auto}
 /* connect services */
 .svc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
 .svc[data-svc^="Supabase"]{grid-row:span 2}

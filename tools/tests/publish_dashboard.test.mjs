@@ -390,7 +390,7 @@ test("editor: free -> mine; someone active -> a request; stale -> taken with a n
   assert.equal(r.asked, "abdul");
   assert.equal(s.current_editor.login, "abdul");
   assert.equal(pr.handOver(s, "dana").ok, false, "only the editor hands over");
-  pr.handOver(s, "abdul", true);
+  pr.handOver(s, "abdul", true, new Date("2026-11-02T09:30:00Z"));
   assert.equal(s.current_editor.login, "dana");
   assert.equal(s.takeover_request, undefined);
   const late = new Date(t0.getTime() + (pr.STALE_HOURS + 15) * 3600e3);

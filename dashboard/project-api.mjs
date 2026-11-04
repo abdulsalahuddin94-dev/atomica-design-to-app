@@ -459,7 +459,8 @@ function sharedEditor(dir, status) {
 }
 // the GitHub login, kept 10 minutes (every project page shows who is editing)
 let loginCache = { v: null, at: 0 };
-function myLogin() { if (!loginCache.v || Date.now() - loginCache.at > 600e3) loginCache = { v: projectRepo.ghLogin(), at: Date.now() }; return loginCache.v; }
+// Signed-in login cached 10 min; "not signed in" only 5 s, so a sign-in started from the editor banner is seen at once.
+function myLogin() { if (Date.now() - loginCache.at > (loginCache.v ? 600e3 : 5e3)) loginCache = { v: projectRepo.ghLogin(), at: Date.now() }; return loginCache.v; }
 async function githubState(dir, withFiles) {
   const status = projectRepo.readStatus(dir);
   const plan = projectRepo.pagesPlan(dir, status);
@@ -707,7 +708,7 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
   }
   // One repo per project: settings, files check, secrets guard, access, review, editor (tools/project_repo.cjs)
   if (req.method === "GET" && m[2] === "github") { send(res, 200, await githubState(dir, url.searchParams.get("files") === "1")); return true; }
-  if (req.method === "GET" && m[2] === "github/editor") { const st = projectRepo.readStatus(dir); send(res, 200, st.collaboration === "team" || st.current_editor || st.github?.repo ? projectRepo.editorState(sharedEditor(dir, st), myLogin()) : { off: true }); return true; }
+  if (req.method === "GET" && m[2] === "github/editor") { const st = projectRepo.readStatus(dir); send(res, 200, st.collaboration === "team" || st.current_editor || st.github?.repo ? { ...projectRepo.editorState(sharedEditor(dir, st), myLogin()), me: myLogin() || null } : { off: true }); return true; }
   if (req.method === "POST" && m[2] === "github/settings") {
     const b = await readBody(req);
     const s = projectRepo.readStatus(dir);
@@ -767,7 +768,7 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
   if (req.method === "POST" && m[2] === "github/editor") {
     const b = await readBody(req);
     const me = myLogin();
-    if (!me) { send(res, 400, { error: "Sign in with GitHub first, so the others see who is editing." }); return true; }
+    if (!me) { send(res, 401, { error: "Sign in with GitHub first, so the others see who is editing.", code: "github_signin" }); return true; }
     const local = projectRepo.readStatus(dir);
     const s = sharedEditor(dir, local);
     for (const k of ["current_editor", "takeover_request"]) { if (s[k]) local[k] = s[k]; else delete local[k]; }
