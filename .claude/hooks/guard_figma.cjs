@@ -9,10 +9,14 @@
 // - FigCli (Bash): the same checks run on `node src/index.js eval "<code>"` / `eval --file <script>`.
 //   Inside a read-only agent only the FigCli read commands are allowed (eval of read-only code,
 //   verify, check, snapshot, daemon status/restart, --version); any other FigCli command is denied.
+// - quality (figma_quality.cjs): raw colors / fonts, default layer names, screen size floor, hover on
+//   mobile; denied before the script runs unless the script says `// allow: <rule> <reason>`.
 // Reads the rules at run time, so editing rules.json changes what is enforced.
 const fs = require("fs");
 const path = require("path");
 const { readInput, WRITE: ANY_WRITE, figcliCode } = require("./_common.cjs"); // broad write-API pattern
+const quality = require("./figma_quality.cjs");
+const { targetOf } = require("./_projects.cjs");
 
 const ROOT = path.join(__dirname, "..", "..");
 const WRITE = new RegExp(
@@ -88,6 +92,11 @@ function main() {
   if (hit.length && WRITE.test(code)) {
     return decide("ask", "off_limits originals-untouched: this script writes to the original template " +
                          `'${hit[0]}'. Work in a duplicate unless the user asked for this change in the original.`);
+  }
+  if (ANY_WRITE.test(code) && !/globalThis\.DS\s*=/.test(code)) { // installing the helpers is not a write
+    const target = targetOf(ti);
+    const q = quality.check(code, quality.context(target));
+    if (q && q.reason) return decide("deny", q.reason);
   }
   return 0;
 }
