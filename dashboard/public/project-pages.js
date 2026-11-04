@@ -9,6 +9,7 @@ const PROJECT_PAGES = [
   ["design", "Design", "i-phone"],
   ["review", "Review", "i-message"],
   ["sync", "Sync", "i-refresh"],
+  ["backend", "Backend", "i-cpu"],
   ["storybook", "Storybook", "i-book"],
   ["github", "GitHub", "i-branch"],
   ["connect", "Connect services", "i-plug"],
@@ -80,6 +81,7 @@ async function renderProjectPage(name, page) {
   if (page === "sync") return drawSync(main, p);
   if (page === "design") return drawDesign(main, p);
   if (page === "connect") return drawConnect(main, p);
+  if (page === "backend") return drawBackend(main, p);
   if (page === "plan") return drawPlan(main, p);
   if (page === "storybook") return drawStorybook(main, p);
   if (page === "github") return drawGithub(main, p);
@@ -1512,4 +1514,133 @@ async function drawGithub(main, p) {
     body.replaceChildren(repoPanel, filesPanel, setup, access || "");
   }
   try { await load(false); } catch (e) { body.replaceChildren(el("p", { class: "p-empty" }, e.message)); }
+}
+
+// ---------- Backend (stage 8, proposal v3): the 5-step Supabase wizard ----------
+// One step at a time, each with one thing to do, a link that opens the right Supabase page, and the field to paste
+// into. The link and publishable key are saved in status.json > backend; the secret key only on this computer.
+// The tables come from backend/setup.sql, which Claude writes from the screens (a chat started from step 5).
+async function drawBackend(main, p) {
+  const enc = encodeURIComponent(p.name);
+  main.append(head(p, "Backend", "Optional: a free Supabase database for this app. Five short steps; your progress is saved, so you can close this any time."));
+  const box = el("section", { class: "p-panel bk-panel" }, el("p", { class: "p-empty" }, "Loading…"));
+  main.append(box);
+  let b = await api(`/api/project/${enc}/backend`).catch((e) => { showError(e); return null; });
+  if (!b) return;
+  let cur = Math.min(5, Math.max(1, b.step || 1));
+  const STEPS = [
+    ["Account", "1 min"], ["Create the project", "2 min, mostly waiting"], ["Link and public key", "1 min"],
+    ["Secret key", "30 sec"], ["Start the database", "1 min"],
+  ];
+  const sb = (ref, rest) => `https://supabase.com/dashboard/project/${ref || "_"}${rest}`;
+  const ext = (href, label, cls = "ghost sm link") => el("a", { class: cls, href, target: "_blank", rel: "noopener" }, label, icon("i-external"));
+  const save = async (body) => { b = await api(`/api/project/${enc}/backend/save`, body); return b; };
+  const done = (n) => b.done.includes(n);
+  const check = (label, n) => {
+    const c = el("input", { type: "checkbox", checked: done(n) || null, onchange: () => { if (c.checked) save({ done: n }).catch(showError); } });
+    return el("label", { class: "bk-check" }, c, el("span", {}, label));
+  };
+  const panes = {
+    1: () => [
+      el("h3", {}, "Do you have a Supabase account?"),
+      el("p", { class: "muted small" }, "Supabase is a free database for your app. The free plan is enough for prototypes."),
+      el("div", { class: "p-actions" }, ext("https://supabase.com/dashboard/sign-up", "Open Supabase sign-up", "primary sm link"),
+        el("span", { class: "muted small" }, "Choose \"Continue with GitHub\" if you use GitHub.")),
+      check("I'm signed in to Supabase", 1),
+    ],
+    2: () => [
+      el("h3", {}, `Create a project for ${p.title}`),
+      el("div", { class: "p-actions" }, ext("https://supabase.com/dashboard/new", "Open \"New project\"", "primary sm link")),
+      el("ol", { class: "bk-todo" },
+        el("li", {}, "Name: ", el("code", {}, b.name), " ", el("button", { class: "ghost sm", type: "button", onclick: async () => toast((await copyText(b.name)) ? "Copied." : "Could not copy.") }, icon("i-copy"), "Copy")),
+        el("li", {}, "Database password: press \"Generate a password\". You don't need it here."),
+        el("li", {}, "Region: the one closest to you and your users."),
+        el("li", {}, "Press \"Create new project\" and wait until it is ready (about 2 minutes).")),
+      el("details", { class: "svc-more" }, el("summary", {}, "The free plan allows only 2 projects"),
+        el("p", { class: "small" }, "If Supabase blocks a new one: use your comments project for this app too (its tables stay separate), or pause a project you don't use. Free projects pause after a week without use; open the project in Supabase and press Restore.")),
+      check("The project is ready", 2),
+    ],
+    3: () => {
+      const link = el("input", { type: "url", placeholder: "https://supabase.com/dashboard/project/…", value: b.ref ? sb(b.ref, "") : "", spellcheck: "false", dir: "ltr" });
+      const found = el("p", { class: "small bk-ok" }, b.ref ? `Found project ${b.ref}. Every link below opens this project.` : "");
+      const pub = el("input", { type: "password", placeholder: b.publishable ? "saved (paste again to change)" : "sb_publishable_…", spellcheck: "false", autocomplete: "off", dir: "ltr" });
+      link.addEventListener("change", async () => {
+        try { await save({ link: link.value }); found.textContent = `Found project ${b.ref}. Every link below opens this project.`; found.classList.remove("bad"); draw(); }
+        catch (e) { found.textContent = e.message; found.classList.add("bad"); }
+      });
+      cur3 = async () => { await save({ link: link.value, publishable: pub.value }); if (!b.ref || !b.publishable) throw new Error("Paste the project link and the publishable key."); };
+      return [
+        el("h3", {}, "Paste your project's link"),
+        el("label", { class: "bk-field" }, el("span", {}, "Project link"), link, found,
+          el("span", { class: "muted small" }, "Copy it from your browser's address bar while the project is open.")),
+        el("div", { class: "bk-field" }, el("span", {}, "Publishable key"),
+          el("div", { class: "p-actions" }, ext(sb(b.ref, "/settings/api-keys"), "Open API keys"), el("span", { class: "muted small" }, "Copy \"Publishable key\". It starts with sb_publishable_.")),
+          pub),
+      ];
+    },
+    4: () => {
+      const sec = el("input", { type: "password", placeholder: b.secret ? "saved (paste again to change)" : "sb_secret_…", spellcheck: "false", autocomplete: "new-password", dir: "ltr" });
+      cur4 = async () => { if (sec.value) await save({ secret: sec.value }); if (!b.secret) throw new Error("Paste the secret key."); };
+      return [
+        el("h3", {}, "Paste the secret key"),
+        el("div", { class: "p-actions" }, ext(sb(b.ref, "/settings/api-keys"), "Open API keys"), el("span", { class: "muted small" }, "Under \"Secret keys\": Reveal, then Copy. It starts with sb_secret_.")),
+        el("label", { class: "bk-field" }, el("span", {}, "Secret key"), sec),
+        el("div", { class: "bk-safe" },
+          el("div", {}, el("b", {}, "Stays on this computer"), el("span", {}, "The secret key, in ", el("code", {}, b.secretFile), ". Never uploaded, never shown again.")),
+          el("div", {}, el("b", {}, "Goes with the project"), el("span", {}, "The link and the publishable key, so a teammate opens the app with no setup."))),
+      ];
+    },
+    5: () => {
+      const result = el("div", { class: "small" }, b.check ? checkLine(b.check) : "");
+      const runCheck = el("button", { class: "ghost sm", type: "button", onclick: async () => {
+        runCheck.disabled = true;
+        try { b = await api(`/api/project/${enc}/backend/check`, {}); result.replaceChildren(checkLine(b.check)); } catch (e) { result.textContent = e.message; }
+        runCheck.disabled = false;
+      } }, icon("i-refresh"), "Check");
+      if (!b.setupSql) return [
+        el("h3", {}, "Start the database"),
+        el("p", { class: "muted small" }, "First Claude writes the tables from your screens (for example patients, bookings, sign-in by email) into backend/setup.sql. You review them in the chat."),
+        el("div", { class: "p-actions" }, el("button", { class: "primary sm", type: "button", onclick: () => start({
+          prompt: `Backend stage 8 for "${p.name}" (My Projects/${p.name}): read the screens, flows and data the prototype uses and write backend/setup.sql for its Supabase project: one table per thing the app saves, sign-in by email when the screens have accounts, row level security on every table with policies that match the screens, safe to run again (create ... if not exists). Show me the tables and policies first and ask before writing. Never read or print the secret key.`,
+          project: p.name, title: `${p.title} · Backend tables` }).catch(showError) }, icon("i-sparkles"), "Ask Claude to write the tables")),
+      ];
+      return [
+        el("h3", {}, "Start the database"),
+        el("p", { class: "small" }, "Tables in the setup: ", ...b.tables.map((t) => el("span", { class: "chip c" }, t))),
+        el("ol", { class: "bk-todo" },
+          el("li", {}, el("button", { class: "ghost sm", type: "button", onclick: async () => toast((await copyText(await fetch(`/api/project/${enc}/backend/setup-sql`).then((r) => r.text()))) ? "Copied the setup." : "Could not copy.") }, icon("i-copy"), "Copy setup")),
+          el("li", {}, ext(sb(b.ref, "/sql/new"), "Open the SQL editor"), " paste it and press Run. Safe to run again."),
+          el("li", {}, runCheck, " here.")),
+        result,
+        b.sameAsComments ? el("p", { class: "small muted" }, "This is the same Supabase project as the prototype comments; its tables stay separate.") : null,
+      ];
+    },
+  };
+  const checkLine = (c) => c.ok
+    ? el("span", { class: "chip g" }, `${c.tables.length} table${c.tables.length > 1 ? "s" : ""}${c.signIn === true ? " · sign-in on" : c.signIn === false ? " · sign-in off" : ""}`)
+    : el("span", { class: "chip y" }, c.missing?.length ? `Missing: ${c.missing.join(", ")}. Run the setup, then Check again.` : "No tables yet. Run the setup, then Check again.");
+  let cur3 = null, cur4 = null;
+  function draw() {
+    const nav = el("ol", { class: "bk-steps" }, STEPS.map(([t, time], i) => {
+      const n = i + 1;
+      return el("li", {}, el("button", { type: "button", class: done(n) ? "done" : null, "aria-current": n === cur ? "step" : null, onclick: () => go(n) },
+        el("span", { class: "n" }, done(n) ? "✓" : String(n)), el("span", {}, t), el("span", { class: "time" }, time)));
+    }));
+    const err = el("p", { class: "small bk-err", hidden: true });
+    const next = el("button", { class: "primary", type: "button", onclick: async () => {
+      try {
+        if (cur === 3 && cur3) await cur3();
+        if (cur === 4 && cur4) await cur4();
+        if (cur < 5) { await save({ done: cur }); go(cur + 1); } else go(5);
+      } catch (e) { err.textContent = e.message; err.hidden = false; }
+    } }, cur === 5 ? "Done" : "Next");
+    const back = el("button", { class: "ghost", type: "button", disabled: cur === 1 || null, onclick: () => go(cur - 1) }, "Back");
+    box.replaceChildren(
+      el("div", { class: "bk-top" }, el("span", { class: "mono small" }, `Step ${cur} of 5 · saved, you can close this`),
+        el("div", { class: "wiz-track" }, el("i", { style: `width:${Math.round((b.done.length / 5) * 100)}%` }))),
+      el("div", { class: "bk" }, nav, el("div", { class: "bk-pane" }, ...panes[cur]().filter(Boolean), err)),
+      el("div", { class: "bk-foot" }, el("span", { class: "muted small" }, b.check?.ok ? "The app can use this database now." : "The prototype keeps using sample data until step 5 is done."), back, next));
+  }
+  function go(n) { cur = Math.min(5, Math.max(1, n)); save({ step: cur }).catch(() => {}); draw(); }
+  draw();
 }
