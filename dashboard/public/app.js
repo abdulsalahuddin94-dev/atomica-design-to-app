@@ -1007,9 +1007,20 @@ function renderChat(id, mount) {
     const m = String(line || "").split("\n").map((l) => l.match(STEP_RE)).filter(Boolean).pop();
     if (!m) return null;
     const name = m[1].replace(/\s+\d+\s*$/, "").trim();
-    return { name, n: m[2] ? Number(m[2]) : null, total: m[3] ? Number(m[3]) : null, text: m[2] ? `${name} ${m[2]}/${m[3]}` : name };
+    return { name, n: m[2] ? Number(m[2]) : null, total: m[3] ? Number(m[3]) : null, raw: m[1].trim(), text: m[2] ? `${name} ${m[2]}/${m[3]}` : m[1].trim() };
   };
   const wiz = { on: false, step: null, open: null };
+  // the whole journey (proposal v3): the stage of the current question is marked, earlier ones done
+  const WIZ_STAGES = [["intake", "Intake"], ["foundation", "Foundation"], ["components", "Components"], ["screens", "Screens"],
+    ["proto", "Live prototype"], ["backend", "Backend"], ["handoff", "Handoff"], ["finish", "Finish"]];
+  const stageOf = (name) => {
+    const n = String(name || "").toLowerCase();
+    if (/^checkpoint\s*1/.test(n) || n.startsWith("foundation")) return "foundation";
+    if (/^checkpoint\s*2/.test(n) || n.startsWith("components")) return "components";
+    if (/^checkpoint\s*3/.test(n) || n.startsWith("screens")) return "screens";
+    if (n.startsWith("storybook")) return "finish";
+    return "intake";
+  };
   const wizKey = `wizard:${id}`;
   let wizFocus = true;
   try { wizFocus = localStorage.getItem(wizKey) !== "all"; } catch {}
@@ -1021,19 +1032,31 @@ function renderChat(id, mount) {
         try { localStorage.setItem(wizKey, wizFocus ? "focus" : "all"); } catch {}
         wizMark(); scroll();
       } })),
-    el("div", { class: "wiz-track", role: "progressbar", "aria-valuemin": "0" }, el("i")));
+    el("div", { class: "wiz-track", role: "progressbar", "aria-valuemin": "0" }, el("i")),
+    el("ol", { class: "wiz-stages", "aria-label": "Stages" }, WIZ_STAGES.map(([key, label]) => el("li", { "data-stage": key }, label))));
   log.before(wizBar);
+  // The project's plan (intake 2.1b, status.json > scope) greys out the stages it does not go to.
+  const wizScope = (scope) => {
+    const off = scope === "ds" ? ["screens", "proto", "backend", "handoff"] : scope === "ds-screens" ? ["proto", "backend", "handoff"] : [];
+    for (const li of wizBar.querySelectorAll(".wiz-stages li")) li.classList.toggle("off", off.includes(li.dataset.stage));
+  };
   function wizStep(step) {
     if (!step) return;
     wiz.on = true;
     if (step.n || !wiz.step) wiz.step = step;
     wizBar.hidden = false;
     const s = wiz.step;
-    wizBar.querySelector(".wiz-label").textContent = s.n ? `${s.name} · step ${s.n} of ${s.total}` : s.name;
+    wizBar.querySelector(".wiz-label").textContent = s.n ? `${s.name} · step ${s.n} of ${s.total}` : s.text;
     const pct = s.n && s.total ? Math.min(100, Math.round((s.n / s.total) * 100)) : 0;
     const track = wizBar.querySelector(".wiz-track");
     track.setAttribute("aria-valuemax", String(s.total || 0)); track.setAttribute("aria-valuenow", String(s.n || 0));
     track.firstChild.style.width = `${pct}%`;
+    const cur = WIZ_STAGES.findIndex(([k]) => k === stageOf(s.raw || s.name));
+    wizBar.querySelectorAll(".wiz-stages li").forEach((li, i) => { li.classList.toggle("on", i === cur); li.classList.toggle("done", i < cur); });
+    if (!wiz.scopeAsked && state.session?.project) {
+      wiz.scopeAsked = true;
+      api(`/api/project/${encodeURIComponent(state.session.project)}/overview`).then((r) => wizScope(r.overview?.scope)).catch(() => {});
+    }
     wizMark();
   }
   // Which nodes stay visible in the wizard view: the open step card, the Claude message just before it, and anything

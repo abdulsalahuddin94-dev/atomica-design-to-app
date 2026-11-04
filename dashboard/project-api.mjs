@@ -146,6 +146,8 @@ export async function projectOverview(folder) {
   const unsyncedStorybook = Number(status.unsynced_entries || 0);
   return {
     hasPrototype: has,
+    scope: status.scope || null,
+    backend: status.backend ? { plan: status.backend.plan || null, ref: status.backend.project_ref || null, step: status.backend.step || 0, checkedAt: status.backend.checked_at || null } : null,
     ds: { components: (registry.components || []).length, tokens: Object.keys(tokens.variables || {}).length, storybook: !!status.has_storybook },
     screens: screens ? { count: new Set(screens.screens.map((s) => s.n.replace(/\s*\/\s*(Dark|Light)$/i, ""))).size, exportedAt: screens.exported_at, file: screens.file } : null,
     build: { screens: (build.screens || []).length, codeAhead: build.code_ahead || [], raw: build.raw || 0, missing: Object.keys(build.missing || {}).length },
@@ -183,6 +185,11 @@ export function pipeline(o) {
   steps.push(o.comments.open
     ? { key: "review", title: "Review (Comments)", state: "wait", text: `${o.comments.open} open comment${o.comments.open > 1 ? "s" : ""}.` }
     : { key: "review", title: "Review (Comments)", state: "done", text: o.comments.pulledAt ? `No open comments (pulled ${String(o.comments.pulledAt).slice(0, 10)}).` : "No comments pulled yet." });
+  if (o.scope === "all" || o.backend) {
+    const b = o.backend || {};
+    steps.push(b.checkedAt ? { key: "backend", title: "Backend (optional)", state: "done", text: `Supabase connected (${b.ref}).` }
+      : { key: "backend", title: "Backend (optional)", state: "wait", text: b.plan === "stage-8" ? `Supabase wizard: step ${b.step || 1} of 5.` : "Sample data for now. Connect a database any time." });
+  }
   const syncN = o.pendingFigmaSync.length + (o.storybook.unsynced ? 1 : 0);
   steps.push(syncN
     ? { key: "sync", title: "Sync", state: "prob", text: [o.pendingFigmaSync.length ? `${o.pendingFigmaSync.length} change${o.pendingFigmaSync.length > 1 ? "s" : ""} in the prototype, not in Figma.` : "", o.storybook.unsynced ? `${o.storybook.unsynced} Figma change${o.storybook.unsynced > 1 ? "s" : ""} not in Storybook.` : ""].filter(Boolean).join(" ") }
@@ -613,6 +620,101 @@ function approvePlan(dir, f) {
 
 const MIME = { ".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif" };
 
+// ---------- Backend (stage 8): the app's own Supabase project, set up with the 5-step wizard ----------
+// One Supabase project per app (decision 3A; the comments project only when the free plan is full). The link and
+// the publishable key travel with the project (status.json > backend); the secret key stays on this computer in
+// ~/.atomica/backend/<project folder>.env and is never sent back to the page.
+const backendSecretFile = (dir) => path.join(os.homedir(), ".atomica", "backend", `${path.basename(dir)}.env`);
+const backendSqlFile = (dir) => path.join(dir, "backend", "setup.sql");
+export function supabaseRef(link) {
+  const t = String(link || "").trim();
+  const m = t.match(/supabase\.com\/dashboard\/project\/([a-z0-9]{8,40})(?:[/?#]|$)/i) || t.match(/^https?:\/\/([a-z0-9]{8,40})\.supabase\.co\/?$/i);
+  return m ? m[1].toLowerCase() : null;
+}
+export function backendKeyError(kind, value, other) {
+  const v = String(value || "").trim();
+  if (!v) return null;
+  if (kind === "publishable") {
+    if (/^sb_secret_/.test(v)) return "That is the secret key. Paste the publishable key here (it starts with sb_publishable_); the secret one goes in step 4.";
+    if (!/^(sb_publishable_[\w-]+|eyJ[\w-]+\.[\w-]+\.[\w-]+)$/.test(v)) return "The publishable key starts with sb_publishable_ (or eyJ for an older anon key).";
+  } else {
+    if (/^sb_publishable_/.test(v)) return "That is the publishable key. The secret key starts with sb_secret_ (Secret keys > Reveal > Copy).";
+    if (!/^(sb_secret_[\w-]+|eyJ[\w-]+\.[\w-]+\.[\w-]+)$/.test(v)) return "The secret key starts with sb_secret_ (or eyJ for an older service_role key).";
+    if (other && v === other) return "The secret key and the publishable key are the same; paste the secret one here.";
+  }
+  return null;
+}
+const readSecret = (dir) => (readText(backendSecretFile(dir)).match(/^\s*SUPABASE_SECRET_KEY\s*=\s*(\S+)/m) || [])[1] || "";
+export function backendTables(sql) {
+  return [...new Set([...String(sql || "").matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?public"?\.)?"?(\w+)"?/gi)].map((m) => m[1].toLowerCase()))];
+}
+function backendState(dir) {
+  const st = readJson(path.join(dir, "status.json"), {});
+  const b = st.backend || {};
+  const commentsRef = supabaseRef(projectRepo.publicSupabase(dir).url || "");
+  const sql = readText(backendSqlFile(dir));
+  return {
+    plan: b.plan || null, step: b.step || 1, done: b.done || [], ref: b.project_ref || null,
+    url: b.project_ref ? `https://${b.project_ref}.supabase.co` : null, publishable: !!b.publishable_key, secret: !!readSecret(dir),
+    secretFile: `~/.atomica/backend/${path.basename(dir)}.env`, setupSql: !!sql, tables: backendTables(sql), check: b.check || null,
+    name: path.basename(dir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), sameAsComments: !!(commentsRef && commentsRef === b.project_ref),
+  };
+}
+function saveBackend(dir, body) {
+  const st = readJson(path.join(dir, "status.json"), {});
+  const b = { ...(st.backend || {}) };
+  if (body.link !== undefined && String(body.link).trim()) {
+    const ref = supabaseRef(body.link);
+    if (!ref) return "Paste the link from your browser while the project is open: https://supabase.com/dashboard/project/<id>.";
+    b.project_ref = ref;
+  }
+  const pubErr = backendKeyError("publishable", body.publishable);
+  if (pubErr) return pubErr;
+  if (body.publishable && String(body.publishable).trim()) b.publishable_key = String(body.publishable).trim();
+  const secErr = backendKeyError("secret", body.secret, b.publishable_key);
+  if (secErr) return secErr;
+  if (body.secret && String(body.secret).trim()) {
+    const file = backendSecretFile(dir);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `# Atomica: the secret key of this app's Supabase project. Stays on this computer.\nSUPABASE_SECRET_KEY=${String(body.secret).trim()}\n`, { mode: 0o600 });
+  }
+  if (Number.isInteger(body.step) && body.step >= 1 && body.step <= 5) b.step = body.step;
+  if (Number.isInteger(body.done) && body.done >= 1 && body.done <= 5) b.done = [...new Set([...(b.done || []), body.done])].sort();
+  st.backend = b;
+  fs.writeFileSync(path.join(dir, "status.json"), JSON.stringify(st, null, 2) + "\n");
+  return null;
+}
+// Check: which tables answer through the API (secret key) and whether email sign-in is on (publishable key).
+async function checkBackend(dir) {
+  const st = readJson(path.join(dir, "status.json"), {});
+  const b = st.backend || {};
+  const secret = readSecret(dir);
+  if (!b.project_ref || !secret) return { ok: false, error: "Finish steps 3 and 4 first (the link and both keys)." };
+  const base = `https://${b.project_ref}.supabase.co`;
+  const head = (key) => ({ apikey: key, ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}) });
+  let tables = [];
+  try {
+    const r = await fetch(`${base}/rest/v1/`, { headers: head(secret), signal: AbortSignal.timeout(8000) });
+    if (r.status === 401 || r.status === 403) return { ok: false, error: "Supabase refused the secret key. Copy it again in step 4." };
+    if (!r.ok) return { ok: false, error: `Supabase answered ${r.status}. Is the project paused? Open it in Supabase and press Restore.` };
+    const spec = await r.json();
+    tables = Object.keys(spec.paths || {}).filter((k) => k !== "/" && !k.startsWith("/rpc/")).map((k) => k.slice(1));
+  } catch (e) { return { ok: false, error: `Could not reach ${base} (${e.name === "TimeoutError" ? "timed out" : "no connection"}).` }; }
+  let signIn = null;
+  if (b.publishable_key) {
+    try {
+      const r = await fetch(`${base}/auth/v1/settings`, { headers: head(b.publishable_key), signal: AbortSignal.timeout(8000) });
+      if (r.ok) { const a = await r.json(); signIn = !!a.external?.email; }
+    } catch {}
+  }
+  const expected = backendTables(readText(backendSqlFile(dir)));
+  const missing = expected.filter((t) => !tables.includes(t));
+  const check = { at: new Date().toISOString(), tables, missing, signIn, ok: !!tables.length && !missing.length };
+  st.backend = { ...b, check, ...(check.ok ? { checked_at: check.at, done: [...new Set([...(b.done || []), 5])].sort() } : {}) };
+  fs.writeFileSync(path.join(dir, "status.json"), JSON.stringify(st, null, 2) + "\n");
+  return { ok: true, check };
+}
+
 export async function handleProjectApi(req, res, url, { send, projectDir, readBody, root, integrations }) {
   const m = url.pathname.match(/^\/api\/project\/([^/]+)\/([\w-]+(?:\/[\w-]+)?)$/);
   if (!m) return false;
@@ -859,6 +961,24 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
     const err = saveSupabase(await readBody(req));
     if (err) { send(res, 400, { error: err }); return true; }
     send(res, 200, await connectState(root, dir, integrations));
+    return true;
+  }
+  if (req.method === "GET" && m[2] === "backend") { send(res, 200, backendState(dir)); return true; }
+  if (req.method === "POST" && m[2] === "backend/save") {
+    const err = saveBackend(dir, await readBody(req));
+    if (err) { send(res, 400, { error: err }); return true; }
+    send(res, 200, backendState(dir));
+    return true;
+  }
+  if (req.method === "POST" && m[2] === "backend/check") {
+    const r = await checkBackend(dir);
+    if (!r.ok) { send(res, 400, { error: r.error }); return true; }
+    send(res, 200, backendState(dir));
+    return true;
+  }
+  if (req.method === "GET" && m[2] === "backend/setup-sql") {
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    res.end(readText(backendSqlFile(dir)));
     return true;
   }
   if (req.method === "GET" && m[2] === "schema-sql") {
