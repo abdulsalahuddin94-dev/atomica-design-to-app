@@ -994,7 +994,126 @@ function renderChat(id, mount) {
   const add = (node) => {
     const stick = nearBottom(); removeTyping(); log.append(node);
     if (stick) scroll(); else if (node.classList?.contains("msg") || node.classList?.contains("qcard") || node.classList?.contains("pcard")) unread++;
-    updateTyping(); syncJump(); return node;
+    updateTyping(); syncJump(); wizMark(); return node;
+  };
+
+  // ---------- Intake wizard (Abdul, 2026-11-04) ----------
+  // The intake (and every later phase) puts a progress line in each question: the AskUserQuestion header or the first
+  // line of a typed question ("Intake 2/11"). Once one is seen, the conversation shows as a wizard: a progress bar on
+  // top and only the current step (Claude's question with its menu or input fields); "Show conversation" shows all.
+  const STEP_RE = /^[\s*_#>]*((?:Intake|Checkpoint|Foundation|Components|Screens|Storybook|Quick task)\b[^\n*_]*?)\s*(?:(\d+)\s*\/\s*(\d+))?[\s*_]*$/i;
+  const parseStep = (line) => {
+    // the last progress line in the text: a reply can start with notes and end with the question
+    const m = String(line || "").split("\n").map((l) => l.match(STEP_RE)).filter(Boolean).pop();
+    if (!m) return null;
+    const name = m[1].replace(/\s+\d+\s*$/, "").trim();
+    return { name, n: m[2] ? Number(m[2]) : null, total: m[3] ? Number(m[3]) : null, text: m[2] ? `${name} ${m[2]}/${m[3]}` : name };
+  };
+  const wiz = { on: false, step: null, open: null };
+  const wizKey = `wizard:${id}`;
+  let wizFocus = true;
+  try { wizFocus = localStorage.getItem(wizKey) !== "all"; } catch {}
+  const wizBar = el("div", { class: "wizard-bar", hidden: true },
+    el("div", { class: "wiz-row" },
+      el("span", { class: "wiz-label" }),
+      el("button", { type: "button", class: "textbtn wiz-toggle", onclick: () => {
+        wizFocus = !wizFocus;
+        try { localStorage.setItem(wizKey, wizFocus ? "focus" : "all"); } catch {}
+        wizMark(); scroll();
+      } })),
+    el("div", { class: "wiz-track", role: "progressbar", "aria-valuemin": "0" }, el("i")));
+  log.before(wizBar);
+  function wizStep(step) {
+    if (!step) return;
+    wiz.on = true;
+    if (step.n || !wiz.step) wiz.step = step;
+    wizBar.hidden = false;
+    const s = wiz.step;
+    wizBar.querySelector(".wiz-label").textContent = s.n ? `${s.name} · step ${s.n} of ${s.total}` : s.name;
+    const pct = s.n && s.total ? Math.min(100, Math.round((s.n / s.total) * 100)) : 0;
+    const track = wizBar.querySelector(".wiz-track");
+    track.setAttribute("aria-valuemax", String(s.total || 0)); track.setAttribute("aria-valuenow", String(s.n || 0));
+    track.firstChild.style.width = `${pct}%`;
+    wizMark();
+  }
+  // Which nodes stay visible in the wizard view: the open step card, the Claude message just before it, and anything
+  // that needs the user now (a permission card, an error after their last message, the typing dots).
+  function wizMark() {
+    if (!wiz.on) return;
+    const focus = wizFocus;
+    log.classList.toggle("wizard", focus);
+    wizBar.querySelector(".wiz-toggle").textContent = focus ? "Show conversation" : "Wizard view";
+    if (!focus) return;
+    const kids = [...log.children];
+    for (const k of kids) k.classList.remove("wiz-keep");
+    const isOpenCard = (k) => (k.classList.contains("qcard") && !k.classList.contains("done")) || (k.classList.contains("wiz-input") && !k.classList.contains("done"));
+    let lastUser = -1;
+    kids.forEach((k, i) => { if (k.classList.contains("user")) lastUser = i; });
+    let anchor = -1;
+    kids.forEach((k, i) => { if (isOpenCard(k)) anchor = i; });
+    if (anchor < 0) kids.forEach((k, i) => { if (k.classList.contains("msg") && k.classList.contains("claude")) anchor = i; });
+    if (anchor < 0) { kids.forEach((k) => k.classList.add("wiz-keep")); return; }
+    kids[anchor].classList.add("wiz-keep");
+    // the question text: the Claude messages between the last answer and the card
+    for (let i = anchor - 1; i > lastUser && i >= 0; i--) if (kids[i].classList.contains("msg") || kids[i].classList.contains("shots")) kids[i].classList.add("wiz-keep");
+    kids.forEach((k, i) => {
+      if (isOpenCard(k) || k.classList.contains("typing")) k.classList.add("wiz-keep");
+      if (i > lastUser && (k.classList.contains("err") || k.classList.contains("reconnecting"))) k.classList.add("wiz-keep");
+      if (i > lastUser && i > anchor && k.classList.contains("msg")) k.classList.add("wiz-keep");
+    });
+  }
+  // A typed question (name, links, a path): input fields instead of the plain message box.
+  function inputCard(text) {
+    const step = parseStep(text);
+    const card = el("div", { class: "qcard sheet wiz-input" });
+    const done = (answer) => {
+      if (!answer) return;
+      card.classList.add("done");
+      for (const b of card.querySelectorAll("button, input, textarea")) b.disabled = true;
+      card.querySelector(".foot")?.remove();
+      card.append(el("div", { class: "picked" }, "Your answer: ", el("b", { dir: "auto" }, answer)));
+      send(answer);
+    };
+    const back = step?.n > 1 ? el("button", { type: "button", class: "ghost", onclick: () => done("Back") }, icon("i-left"), "Back") : null;
+    if (/figma\s+link/i.test(text)) {
+      // Figma links (intake 0.2): one design system file, any number of named Design files, or none yet.
+      const ds = el("input", { type: "url", placeholder: "https://www.figma.com/design/…", dir: "ltr" });
+      const rows = el("div", { class: "wiz-rows" });
+      const addRow = () => {
+        const name = el("input", { type: "text", placeholder: "Name, e.g. Web App", dir: "auto" });
+        const url = el("input", { type: "url", placeholder: "https://www.figma.com/design/…", dir: "ltr" });
+        const row = el("div", { class: "wiz-pair" }, name, url,
+          el("button", { type: "button", class: "textbtn", "aria-label": "Remove", onclick: () => row.remove() }, icon("i-x")));
+        rows.append(row); name.focus();
+      };
+      const next = () => {
+        const files = [...rows.querySelectorAll(".wiz-pair")].map((r) => { const [n, u] = r.querySelectorAll("input"); return { n: n.value.trim(), u: u.value.trim() }; }).filter((f) => f.u);
+        if (!ds.value.trim() && !files.length) { ds.focus(); toast("Add a link, or press None yet."); return; }
+        done([ds.value.trim() ? `Design System file: ${ds.value.trim()}` : "Design System file: none yet",
+          ...files.map((f, i) => `Design file "${f.n || `Design file ${i + 1}`}": ${f.u}`)].join("\n"));
+      };
+      card.append(
+        el("label", { class: "wiz-field" }, el("span", {}, "Design System file (one)"), ds),
+        el("div", { class: "wiz-field" }, el("span", {}, "Design files with screens"), rows,
+          el("button", { type: "button", class: "ghost sm", onclick: addRow }, "Add a Design file")),
+        el("div", { class: "foot" }, back,
+          el("button", { type: "button", class: "ghost", onclick: () => done("none") }, "None yet"),
+          el("button", { type: "button", class: "primary", onclick: next }, "Next")));
+      setTimeout(() => ds.focus(), 0);
+    } else {
+      const field = el("input", { type: "text", placeholder: "Type your answer", dir: "auto" });
+      const next = () => done(field.value.trim());
+      field.addEventListener("keydown", (k) => { if (k.key === "Enter" && !k.isComposing) { k.preventDefault(); next(); } });
+      card.append(el("label", { class: "wiz-field" }, el("span", {}, /name/i.test(text) ? "Name" : "Your answer"), field),
+        el("div", { class: "foot" }, back, el("button", { type: "button", class: "primary", onclick: next }, "Next")));
+      setTimeout(() => field.focus(), 0);
+    }
+    return card;
+  }
+  const closeInputCard = () => {
+    const c = wiz.open;
+    wiz.open = null;
+    if (c && !c.classList.contains("done")) { c.classList.add("done"); c.querySelector(".foot")?.remove(); for (const b of c.querySelectorAll("button, input")) b.disabled = true; }
   };
   // A line with the date and time when more than 30 minutes passed between messages (continued conversations).
   let lastAt = 0;
@@ -1137,6 +1256,7 @@ function renderChat(id, mount) {
     switch (e.type) {
       case "hello":
         log.replaceChildren();
+        Object.assign(wiz, { on: false, step: null, open: null, typed: null }); wizBar.hidden = true; log.classList.remove("wizard");
         Object.assign(state, { busy: false, pending: new Set(), lastShots: [], shotRows: [], toolRow: null, live: null, firstPrompt: null, session: e.session, limit: null, limitCard: null, agent: e.session.agent || "claude" });
         fillSide(e.session);
         setAgent(state.agent);
@@ -1144,6 +1264,7 @@ function renderChat(id, mount) {
         break;
       case "user":
         if (!state.firstPrompt) state.firstPrompt = e.text;
+        closeInputCard(); wiz.typed = null;
         state.toolRow = null; state.live = null; state.lastShots = []; state.shotRows = [];
         stamp(e.at);
         add(el("div", { class: "msg user", dir: "auto", title: timeTitle(e.at) }, e.text, (e.images || []).map((src) => el("img", { src, alt: "Attached image" }))));
@@ -1159,9 +1280,10 @@ function renderChat(id, mount) {
         state.toolRow = null;
         if (state.live && e.streamed) { state.live.innerHTML = markdown(e.text); state.live.title = timeTitle(e.at) || ""; finishReply(state.live, e.text); state.live = null; }
         else { state.live = null; stamp(e.at); add(finishReply(el("div", { class: "msg claude" + (e.agent === "gemini" ? " gemini" : ""), dir: "auto", title: timeTitle(e.at), html: markdown(e.text) }), e.text)); }
+        { const st = parseStep(e.text); if (st?.n) { wizStep(st); wiz.typed = e.text; } else wiz.typed = null; }
         break;
       case "tool":
-        state.live = null;
+        state.live = null; wiz.typed = null;
         if (!state.toolRow) state.toolRow = add(el("div", { class: "tools" }));
         state.toolRow.append(el("span", { class: "t" + (e.sub ? " sub" : ""), title: `${e.name} ${e.detail}` }, el("b", {}, e.name), e.detail ? ` ${e.detail}` : ""));
         foldTools(state.toolRow);
@@ -1178,6 +1300,8 @@ function renderChat(id, mount) {
       }
       case "question": {
         state.pending.add(e.requestId);
+        wiz.typed = null;
+        wizStep(parseStep(e.questions?.[0]?.header || ""));
         attention("Waiting for your answer", e.at);
         const shots = state.lastShots.slice(-4);
         // The screenshots move into the approval card instead of showing twice.
@@ -1196,6 +1320,7 @@ function renderChat(id, mount) {
         state.pending.delete(e.requestId);
         const card = log.querySelector(`[data-request="${e.requestId}"]`);
         if (card) closeCard(card, e);
+        wizMark();
         state.lastShots = []; state.shotRows = [];
         break;
       }
@@ -1207,6 +1332,8 @@ function renderChat(id, mount) {
         // a new conversation gets its Claude session id with the first reply: keep it, so a reconnect can continue it
         if (state.session && !state.session.claudeSessionId) api("/api/sessions").then((r) => { const me = r.live.find((x) => x.id === id); if (me?.claudeSessionId) state.session.claudeSessionId = me.claudeSessionId; }).catch(() => {});
         attention(e.ok ? "Done" : "Stopped", e.at);
+        // a typed intake question ended the turn: show its input fields
+        if (e.ok && wiz.typed && !state.pending.size) { closeInputCard(); wiz.open = add(inputCard(wiz.typed)); wiz.typed = null; }
         if (!e.ok && e.error) add(el("div", { class: "sys err" }, e.error));
         break;
       case "error":
