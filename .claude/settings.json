@@ -94,7 +94,7 @@
         ]
       },
       {
-        "matcher": "mcp__figma-console__figma_execute|mcp__figma-console__figma_execute_across_files|mcp__.*figma.*__use_figma|Bash",
+        "matcher": "mcp__figma-console__figma_execute|mcp__figma-console__figma_execute_across_files|mcp__.*figma.*__use_figma|Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
@@ -110,6 +110,15 @@
             "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" figma_focus"
           }
         ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" guard_commands"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -121,6 +130,15 @@
             "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" audit_reminder mark"
           }
         ]
+      },
+      {
+        "matcher": "mcp__figma-console__figma_(execute|create_.*|batch_.*|update_.*|delete_.*|set_.*|add_.*|edit_.*|rename_.*|move_.*|resize_.*|clone_.*|instantiate_.*|import_.*|arrange_.*|append_.*|reset_.*|setup_.*)|mcp__.*figma.*__use_figma|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" session_gate mark"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -129,6 +147,10 @@
           {
             "type": "command",
             "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" audit_reminder stop"
+          },
+          {
+            "type": "command",
+            "command": "node -e \"require(require('path').resolve(process.env.CLAUDE_PROJECT_DIR||'.','.claude/hooks/run.cjs'))\" session_gate stop"
           }
         ]
       }
