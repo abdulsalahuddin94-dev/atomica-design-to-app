@@ -2,7 +2,7 @@
   "name": "design-systems-dashboard",
   "private": true,
   "version": "0.1.0",
-  "description": "Local dashboard for the Design systems Ai Ready workflow. Runs Claude Code in the Root with the same skills, rules and hooks.",
+  "description": "Local dashboard for the Atomica Studio workflow. Runs Claude Code in the Root with the same skills, rules and hooks.",
   "type": "module",
   "main": "server.mjs",
   "scripts": {

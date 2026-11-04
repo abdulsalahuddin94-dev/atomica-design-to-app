@@ -31,7 +31,7 @@ Load when 0.3d is answered "Team", when 0.0 is "Join a team project", or when a 
 ## 15.5 Switching
 - Solo -> Team: run 15.2 any time the user asks. Team -> Solo: set `collaboration: "solo"`; the repo stays as it is (deleting a repo is the user's step).
 
-## 15.6 Hand-off in the dashboard (Abdul, 2026-11-02, the-live-prototype branch)
+## 15.6 Hand-off in the dashboard (Abdul, 2026-11-02)
 One repo per project holds everything a second designer needs; `tools/project_repo.cjs` has the logic, the dashboard's project **GitHub** page the buttons. Project repos are always public (the links stay inside the company), so nothing secret goes in.
 - **Live links:** "Publish to: This repo" (`status.json > github.pages = "project-repo"`) puts the prototype at `/<repo>/prototype/` and the Storybook at `/<repo>/storybook/` (`tools/publish_storybook.cjs`, only when its checklist has "Public link"), with a link page at `/<repo>/`. Projects keep their older links until the user switches.
 - **Files:** Check files lists what is not uploaded, what stays on this computer on purpose (comment cache, packages, builds) and key files; Upload to GitHub records the comments' public Supabase pair in `status.json > comments`, scans, commits and pushes.

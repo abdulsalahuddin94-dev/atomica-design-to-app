@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          repository: abdulsalahuddin94-dev/design-systems-ai-ready
+          repository: abdulsalahuddin94-dev/atomica-design-to-app
           ref: master
           path: _workflow
           sparse-checkout: tools

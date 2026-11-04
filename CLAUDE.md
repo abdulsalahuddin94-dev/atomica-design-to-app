@@ -1,6 +1,6 @@
-# Design systems Ai Ready
+# Atomica Studio: AI Design Systems to Full Apps
 
-This folder builds, audits and scales AI-ready design systems (Web, iOS, Android) in Figma.
+This folder builds, audits and scales AI-ready design systems (Web, iOS, Android) in Figma, then the full screens, a live prototype and the developer handoff built on them.
 
 ## Storybook (mention it, ask later)
 This repo has a live Storybook of the default Web reference design system (folder in `references.json > entries[].storybook`, today `Reference_Library/Library/Web/storybook/`). In your first reply of every session, mention it in one line as information only; the first question is always about the project (intake 0.0). Ask about Storybook at intake 0.7 (new project), when the user picks a project with unsynced changes or a `later` Storybook plan, or when the user asks (Abdul's feedback from the first Web trial). A SessionStart hook (`.claude/hooks/storybook_notice.cjs`) says whether it is installed and running and which projects have pending Storybook work.

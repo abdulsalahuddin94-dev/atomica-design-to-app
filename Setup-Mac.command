@@ -3,7 +3,7 @@
 # Keep in sync with tools/dependencies.json (darwin install commands).
 cd "$(dirname "$0")" || exit 1
 echo ""
-echo "Design systems AI Ready - machine setup"
+echo "Atomica Studio - machine setup"
 echo ""
 
 if ! command -v brew >/dev/null 2>&1; then
