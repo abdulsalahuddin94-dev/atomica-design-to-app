@@ -268,7 +268,8 @@ async function drawSync(main, p) {
 // ---------- Design: Lovable-like workspace ----------
 // Left: this project's design conversation (the same chat as everywhere, mounted in a panel). Right: the prototype,
 // local (Vite on this computer) or live (the published link). Publish runs tools/publish_prototype.cjs; Push to Figma
-// only queues a request for the Sync page. Code first / Figma first is asked once per project.
+// only queues a request for the Sync page. Code first / Figma first is asked once per project. Figma first shows the
+// chat only, no preview (Abdul, 2026-11-04): the dashboard often takes a third of the screen beside Figma.
 const MODE_TEXT = {
   "code-first": ["Code first", "New screens and changes are built in the prototype first; Figma follows when you sync."],
   "figma-first": ["Figma first", "Changes are designed in the Figma Design file first, then the prototype is rebuilt from it."],
@@ -276,7 +277,7 @@ const MODE_TEXT = {
 // Sent to Claude with the first message but not shown in the conversation (only the typed request is).
 const DESIGN_CONTEXT = (p, mode, screen, where) => `Design workspace for "${p}" (My Projects/${p}), ${MODE_TEXT[mode][0].toLowerCase()}. ${mode === "code-first"
   ? "Build each change in the prototype first (prototype/data/overrides.json, or a code-first screen), rebuild and check it, and add it to status.json > prototype.pending_figma_sync. Do not touch Figma."
-  : "Design each change in the Figma Design file first with the saved tool (ask me before each write), audit it, then re-export and rebuild the prototype."} Rules: only the project's design-system components and tokens (its Storybook React components and data/tokens.json), never raw values; a missing component or size is a DS gap: tell me and give me the options, never invent one. The preview shows "${screen}" (${where}). My request follows.`;
+  : "Design each change in the Figma Design file first with the saved tool (ask me before each write), audit it, then re-export and rebuild the prototype."} Rules: only the project's design-system components and tokens (its Storybook React components and data/tokens.json), never raw values; a missing component or size is a DS gap: tell me and give me the options, never invent one. ${mode === "code-first" ? `The preview shows "${screen}" (${where}).` : "The dashboard shows no preview here (I look at Figma)."} My request follows.`;
 const designKey = (name) => `designChat:${name}`;
 const readStore = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } };
 const writeStore = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -306,10 +307,13 @@ async function drawDesign(main, p) {
     chatBody);
 
   const setMode = async (mode) => {
-    try { st = await api(`/api/project/${enc}/design/mode`, { mode }); drawMode(); if (!sessionId()) drawStarter(); if (pendingApply) { const c = pendingApply; pendingApply = null; applyNow(c); } }
+    try { st = await api(`/api/project/${enc}/design/mode`, { mode }); drawMode(); drawBar(); loadFrame(); if (!sessionId()) drawStarter(); if (pendingApply) { const c = pendingApply; pendingApply = null; applyNow(c); } }
     catch (e) { showError(e); }
   };
+  // Figma first: chat only (the stage stays built but hidden and empty, so switching back to Code first shows it again)
+  const chatOnly = () => st.designMode === "figma-first";
   function drawMode() {
+    main.classList.toggle("chat-only", chatOnly());
     modeSeg.replaceChildren(...Object.entries(MODE_TEXT).map(([k, [label, d]]) => el("button", { type: "button", role: "radio", class: st.designMode === k ? "on" : null, "aria-checked": String(st.designMode === k), title: d, onclick: () => setMode(k) }, label)));
   }
   const sessionId = () => readStore(designKey(p.name))?.id || null;
@@ -366,7 +370,8 @@ async function drawDesign(main, p) {
     queueMicrotask(() => { if (pendingPrefill) prefill(pendingPrefill); });
     chatBody.replaceChildren(el("div", { class: "ws-empty" },
       el("p", {}, el("b", {}, MODE_TEXT[st.designMode][0]), `: ${MODE_TEXT[st.designMode][1]}`),
-      el("p", { class: "muted small" }, `Claude sees which screen the preview shows ("${screenName()}").`)), form);
+      chatOnly() ? el("p", { class: "muted small" }, "No preview here: changes are designed in Figma, so keep Figma open beside this panel.")
+        : el("p", { class: "muted small" }, `Claude sees which screen the preview shows ("${screenName()}").`)), form);
     ta.focus();
   }
   function mountChat(id) {
@@ -466,6 +471,7 @@ async function drawDesign(main, p) {
     return `${b.replace(/\/?$/, "/")}#/${view.screen}?${p}`;
   };
   function loadFrame(force) {
+    if (chatOnly()) { canvas.replaceChildren(); frame.removeAttribute("src"); delete frame.dataset.src; return; }
     const url = screenUrl();
     const sc = st.screens.find((s) => s.slug === view.screen);
     badge.hidden = !(sc?.source === "code");
