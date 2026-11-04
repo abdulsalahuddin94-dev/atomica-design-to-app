@@ -1366,7 +1366,7 @@ server.on("error", (err) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`\n  Design systems Ai Ready - dashboard\n  http://localhost:${PORT}\n\n  Keep this window open while you use it. Close it to stop.\n`);
+  console.log(`\n  Atomica Studio - dashboard\n  http://localhost:${PORT}\n\n  Keep this window open while you use it. Close it to stop.\n`);
   if (process.argv.includes("--open")) {
     const url = `http://localhost:${PORT}`;
     const opener = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];

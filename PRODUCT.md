@@ -13,7 +13,7 @@ web
 - They use it on their own computer (localhost), next to Figma Desktop, often for long sessions; a conversation can run for hours with screenshots to approve. (inferred: wide desktop screen, Figma open in another window)
 
 ## Product Purpose
-A local control panel for the "Design systems Ai Ready" workflow. It starts Claude Code in the workflow folder (Agent SDK) and shows the conversation: AskUserQuestion menus become buttons, permission prompts become cards, screenshots appear inline for approval. Home lists the user's projects (phase, last change, next step, Figma / Storybook links, unsynced Storybook changes), starts new work (new project, join a team project, quick task, ask anything, work from phone), adds to the workflow (reference design system, icon library, skill from GitHub), and shows workflow updates, sign-in and permission mode.
+A local control panel for the "Atomica Studio" workflow. It starts Claude Code in the workflow folder (Agent SDK) and shows the conversation: AskUserQuestion menus become buttons, permission prompts become cards, screenshots appear inline for approval. Home lists the user's projects (phase, last change, next step, Figma / Storybook links, unsynced Storybook changes), starts new work (new project, join a team project, quick task, ask anything, work from phone), adds to the workflow (reference design system, icon library, skill from GitHub), and shows workflow updates, sign-in and permission mode.
 Success: a designer opens it, sees at a glance where each project stands, and starts or resumes the right task in one click.
 
 ## Positioning

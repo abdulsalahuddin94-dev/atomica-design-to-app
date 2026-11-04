@@ -43,7 +43,7 @@ function Test-Dep($dep) {
 }
 
 Write-Host ''
-Write-Host 'Design systems AI Ready - machine setup' -ForegroundColor Cyan
+Write-Host 'Atomica Studio - machine setup' -ForegroundColor Cyan
 Write-Host 'Checking what this computer needs...'
 Write-Host ''
 $missing = @()

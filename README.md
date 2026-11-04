@@ -1,6 +1,6 @@
-# Design systems Ai Ready
+# Atomica Studio: AI Design Systems to Full Apps
 
-Skills that let Claude Code build, audit and scale AI-ready design systems in Figma for Web, iOS and Android: strictly tokenized, componentized and documented so AI agents can build UIs from them.
+One workflow that takes a product from its design system to a full app: Claude Code builds, audits and scales AI-ready design systems in Figma for Web, iOS and Android (strictly tokenized, componentized and documented so AI agents can build UIs from them), designs full screens and flows from them, turns them into a live prototype with comments, and hands everything to developers (Storybook, code repo, optional Supabase backend).
 
 ## Meet Atomica
 A 1:40 intro to the product (with sound).
