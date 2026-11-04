@@ -679,10 +679,19 @@ function stageIndex(p) {
   if (best >= 0 && /(done|approved|finished|complete)/.test(text) && best < STAGES.length - 1) best += 1;
   return best;
 }
+// How long each phase usually takes, from the Time: lines of earlier projects (tools/phase_times.cjs).
+let phaseTimesCache = null;
+const getPhaseTimes = () => (phaseTimesCache ||= api("/api/phase-times").then((r) => r.phases || {}).catch(() => ({})));
+const fmtMinutes = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`);
 function track(p) {
   const at = stageIndex(p);
+  const usual = el("span", { class: "usual" });
+  if (at >= 0) getPhaseTimes().then((t) => {
+    const x = t[STAGES[at]];
+    if (x) { usual.textContent = `usually about ${fmtMinutes(x.median)}`; usual.title = `Median active time of ${x.sessions} earlier ${STAGES[at]} session${x.sessions > 1 ? "s" : ""}`; }
+  });
   return el("div", { class: "stage" },
-    el("div", { class: "stage-now" + (at >= 0 ? "" : " unknown") }, at >= 0 ? STAGES[at] : "Stage not recorded", at >= 0 ? el("span", {}, `${at + 1} of ${STAGES.length}`) : null),
+    el("div", { class: "stage-now" + (at >= 0 ? "" : " unknown") }, at >= 0 ? STAGES[at] : "Stage not recorded", at >= 0 ? el("span", {}, `${at + 1} of ${STAGES.length}`) : null, usual),
     el("ol", { class: "track", "aria-hidden": "true" },
       STAGES.map((s, i) => el("li", { class: i < at ? "done" : i === at ? "now" : "" }, el("span", {}, s)))));
 }
@@ -888,6 +897,77 @@ const QUICK = [
   { label: "Project status", hint: "Checkpoints, to-dos, what is next", prompt: (p) => `Show the status of the project "${p}": checkpoints, user to-dos and the next step. Do not change anything.` },
 ];
 
+// Plain-word tooltips on design-system terms (Design_System_Intake_Skill/glossary.json, Intake section 0, Plain words).
+let glossary = {}, glossaryRe = null, glossaryLoad = null;
+const loadGlossary = () => (glossaryLoad ||= api("/api/glossary").then((g) => {
+  const terms = g.terms || {};
+  glossary = Object.fromEntries(Object.entries(terms).map(([k, v]) => [k.toLowerCase(), v]));
+  const keys = Object.keys(terms).sort((a, b) => b.length - a.length).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  glossaryRe = keys.length ? new RegExp(`\\b(${keys.join("|")})\\b`, "gi") : null;
+}).catch(() => {}));
+// Each term is explained once per text, at its first appearance.
+function withTerms(text) {
+  text = String(text ?? "");
+  if (!glossaryRe || !text) return [text];
+  const out = [], seen = new Set();
+  let last = 0;
+  for (const m of text.matchAll(glossaryRe)) {
+    const key = m[1].toLowerCase();
+    if (seen.has(key) || !glossary[key]) continue;
+    seen.add(key);
+    out.push(text.slice(last, m.index), el("abbr", { class: "term", title: glossary[key] }, m[1]));
+    last = m.index + m[1].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+
+// Option previews (Intake section 0, Previews), one item per line: "Colors: #hex ...", "Font: Latin | Arabic",
+// "Icons: prefix:name ..." (Iconify ids), "Modes: Light, Dark". Other lines stay text; no known line -> plain text box.
+const fontsLoaded = new Set();
+function loadFont(name) {
+  if (!name || fontsLoaded.has(name)) return;
+  fontsLoaded.add(name);
+  document.head.append(el("link", { rel: "stylesheet", href: `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name).replace(/%20/g, "+")}:wght@400;600&display=swap` }));
+}
+function previewNode(text) {
+  const rows = [];
+  let rich = false;
+  for (const line of String(text).split(/\r?\n/)) {
+    const m = line.match(/^\s*(colou?rs?|fonts?|icons?|modes?)\s*:\s*(.+)$/i);
+    if (!m) { if (line.trim()) rows.push(el("div", { class: "pv-text", dir: "auto" }, line.trim())); continue; }
+    rich = true;
+    const kind = m[1].toLowerCase()[0], v = m[2].trim();
+    if (kind === "c") {
+      rows.push(el("div", { class: "pv-colors" }, (v.match(/#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b/gi) || []).map((h) =>
+        el("span", { class: "pv-sw" }, el("i", { style: `background:${h}` }), h.toUpperCase()))));
+    } else if (kind === "f") {
+      const [lat, ar] = v.split("|").map((x) => x.trim().replace(/[^\w .-]/g, ""));
+      loadFont(lat); loadFont(ar);
+      rows.push(el("div", { class: "pv-font" },
+        lat ? el("span", { style: `font-family:"${lat}",system-ui,sans-serif` }, el("b", {}, "Aa"), ` ${lat}: The quick brown fox`) : null,
+        ar ? el("span", {}, el("span", { dir: "rtl", lang: "ar", style: `font-family:"${ar}",system-ui,sans-serif` }, "أبجد هوز حطي كلمن"), el("small", {}, ` ${ar}`)) : null));
+    } else if (kind === "i") {
+      rows.push(el("div", { class: "pv-icons" }, v.split(/[\s,]+/).filter(Boolean).map((id) => /^[a-z0-9-]+:[a-z0-9-]+$/i.test(id)
+        ? el("img", { src: `https://api.iconify.design/${id.replace(":", "/")}.svg`, alt: id, title: id, width: 22, height: 22, loading: "lazy" })
+        : el("span", { class: "pv-text" }, id))));
+    } else {
+      rows.push(el("div", { class: "pv-modes" }, v.split(/[,/]+/).map((x) => x.trim()).filter(Boolean).map((x) =>
+        el("span", { class: "pv-mode " + (/dark/i.test(x) ? "dark" : "light") }, x))));
+    }
+  }
+  return rich ? el("div", { class: "pv" }, rows) : el("pre", {}, text);
+}
+
+// Desktop notification when Claude needs you or finished while this tab is in the background (opt-in).
+const canNotify = () => "Notification" in window && Notification.permission === "granted";
+function notifyButton() {
+  if (!("Notification" in window) || Notification.permission !== "default") return null;
+  const b = el("button", { type: "button", class: "ghost notify", onclick: () => Notification.requestPermission().then(() => b.remove()) },
+    "Notify me when Claude needs me");
+  return b;
+}
+
 // mount: where the conversation goes (the whole page, or the Design workspace's chat panel in project-pages.js).
 function renderChat(id, mount) {
   const app = mount || $("#app");
@@ -958,7 +1038,14 @@ function renderChat(id, mount) {
   // Browser tab title: says when Claude needs an answer or finished while you were in another tab.
   const openedAt = Date.now();
   const baseTitle = "Atomica";
-  const attention = (text, at) => { if (document.hidden && (at || 0) >= openedAt) document.title = `${text} · ${baseTitle}`; };
+  const attention = (text, at) => {
+    if (!document.hidden || (at || 0) < openedAt) return;
+    document.title = `${text} · ${baseTitle}`;
+    if (canNotify()) {
+      const n = new Notification(`Atomica: ${text}`, { body: state.session?.title || "", tag: `atomica-${id}` });
+      n.onclick = () => { window.focus(); n.close(); };
+    }
+  };
   const clearAttention = () => { if (!document.hidden) document.title = baseTitle; };
   document.addEventListener("visibilitychange", clearAttention);
   current.cleanup = () => { document.removeEventListener("visibilitychange", clearAttention); document.title = baseTitle; };
@@ -996,6 +1083,8 @@ function renderChat(id, mount) {
     }
     const actions = $("#side-actions");
     actions.replaceChildren();
+    const nb = notifyButton();
+    if (nb) actions.append(nb);
     if (p) {
       actions.append(el("p", { class: "sub" }, "Quick actions"));
       for (const q of QUICK) {
@@ -1010,6 +1099,7 @@ function renderChat(id, mount) {
   if (!projects.length) api("/api/projects").then((r) => { projects = r.projects; if (state.session) fillSide(state.session); }).catch(() => {});
 
   // Events from Claude
+  loadGlossary();
   const es = new EventSource(`/api/sessions/${id}/events`);
   current.es = es;
   // The dashboard restarted (or the stream dropped): reconnect by itself. A conversation that is no longer running
@@ -1175,18 +1265,31 @@ function renderChat(id, mount) {
 
   function questionCard(e, shots) {
     const card = el("div", { class: "qcard sheet" + (shots.length ? " proof" : ""), "data-request": e.requestId });
-    if (shots.length) {
-      const wrap = el("div", { class: "shots" + (shots.length === 2 ? " compare" : "") }, shots.map(shotNode));
-      card.append(wrap);
-    }
     const answers = {};
+    if (shots.length) {
+      // Checkpoint gallery: numbered screenshots, and comments pinned on them (Intake section 8, Comments on screenshots).
+      const wrap = el("div", { class: "shots gallery" + (shots.length === 2 ? " compare" : "") }, shots.map((src, i) => {
+        const f = shotNode(src);
+        f.append(el("figcaption", {}, String(i + 1)));
+        return f;
+      }));
+      card.append(wrap);
+      if (e.questions.length === 1) card.append(el("div", { class: "comment-row" },
+        el("button", { type: "button", class: "ghost", onclick: () => annotate(shots, (text, images) => {
+          answers[e.questions[0].question] = text;
+          api(`/api/sessions/${id}/answer`, { requestId: e.requestId, answers })
+            .then(() => images.length && api(`/api/sessions/${id}/message`, { text: "The screenshots with my numbered comments, for the change request above.", images }))
+            .catch(showError);
+        }) }, "Comment on the screenshots"),
+        el("span", { class: "hint" }, "Click a spot on a screenshot and write what to change.")));
+    }
     const multi = e.questions.some((q) => q.multiSelect) || e.questions.length > 1;
     const submit = () => {
       for (const q of e.questions) if (!answers[q.question]) return;
       api(`/api/sessions/${id}/answer`, { requestId: e.requestId, answers }).catch(showError);
     };
     for (const q of e.questions) {
-      const box = el("div", { class: "q" }, el("h4", { dir: "auto" }, q.question));
+      const box = el("div", { class: "q" }, el("h4", { dir: "auto" }, withTerms(q.question)));
       const list = el("div", { class: "opts-list" });
       const picked = new Set();
       for (const o of q.options || []) {
@@ -1206,8 +1309,8 @@ function renderChat(id, mount) {
               if (!multi) submit();
             }
           },
-        }, el("span", { class: "l" }, o.label), o.description ? el("span", { class: "d" }, o.description) : null,
-          o.preview ? el("pre", {}, o.preview) : null);
+        }, el("span", { class: "l" }, withTerms(o.label)), o.description ? el("span", { class: "d" }, withTerms(o.description)) : null,
+          o.preview ? previewNode(o.preview) : null);
         list.append(btn);
       }
       const other = el("input", { type: "text", placeholder: "Other: type your own answer", dir: "auto" });
@@ -1456,6 +1559,69 @@ function openSignIn(onDone) {
     } catch (e) { startBtn.disabled = false; showError(e); }
   };
   dlg.showModal();
+}
+
+// Pin numbered comments on checkpoint screenshots. done(text, images): the change request and the pinned images.
+function annotate(shots, done) {
+  const pins = []; // { shot, x, y, input }
+  const list = el("ol", { class: "pin-list" });
+  const sendBtn = el("button", { type: "button", class: "primary", disabled: true }, "Send as change request");
+  const refresh = () => { sendBtn.disabled = !pins.some((p) => p.input.value.trim()); };
+  const stage = el("div", { class: "annot-shots" }, shots.map((src, si) => {
+    const marks = el("div", { class: "marks" });
+    const img = el("img", { src, alt: `Screenshot ${si + 1}` });
+    const box = el("figure", { class: "annot-shot" }, el("figcaption", {}, `Screenshot ${si + 1}`), el("div", { class: "pin-area" }, img, marks));
+    img.addEventListener("click", (ev) => {
+      const r = img.getBoundingClientRect();
+      const pin = { shot: si, x: (ev.clientX - r.left) / r.width, y: (ev.clientY - r.top) / r.height };
+      const n = pins.push(pin);
+      marks.append(el("span", { class: "pin", style: `left:${pin.x * 100}%;top:${pin.y * 100}%` }, String(n)));
+      pin.input = el("input", { type: "text", dir: "auto", placeholder: `What should change at ${n}?`, oninput: refresh });
+      list.append(el("li", {}, el("span", { class: "pin" }, String(n)), pin.input));
+      pin.input.focus();
+    });
+    return box;
+  }));
+  const dlg = el("dialog", { class: "annot" },
+    el("div", { class: "annot-head" }, el("h3", {}, "Comment on the screenshots"), el("span", { class: "hint" }, "Click where something should change, then write it.")),
+    el("div", { class: "annot-body" }, stage, el("div", { class: "annot-side" }, list)),
+    el("div", { class: "foot" }, el("button", { type: "button", class: "ghost", onclick: () => dlg.close() }, "Cancel"), sendBtn));
+  sendBtn.addEventListener("click", async () => {
+    const used = pins.filter((p) => p.input.value.trim());
+    const where = (p) => `${p.y < 0.34 ? "top" : p.y < 0.67 ? "middle" : "bottom"} ${p.x < 0.34 ? "left" : p.x < 0.67 ? "center" : "right"}`;
+    const text = ["Request changes. Comments on the checkpoint screenshots:",
+      ...pins.map((p, i) => p.input.value.trim() ? `${i + 1}. Screenshot ${p.shot + 1}, ${where(p)} (${Math.round(p.x * 100)}% across, ${Math.round(p.y * 100)}% down): ${p.input.value.trim()}` : null).filter(Boolean)].join("\n");
+    const images = [];
+    for (const si of [...new Set(used.map((p) => p.shot))]) images.push(await pinnedImage(shots[si], pins.map((p, i) => ({ ...p, n: i + 1 })).filter((p) => p.shot === si && p.input.value.trim())));
+    dlg.close();
+    done(text, images.filter(Boolean));
+  });
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+}
+// The screenshot with its numbered pins drawn in, as a PNG data URL.
+function pinnedImage(src, pins) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const g = c.getContext("2d");
+      g.drawImage(img, 0, 0);
+      const r = Math.max(14, Math.round(c.width / 60));
+      for (const p of pins) {
+        const x = p.x * c.width, y = p.y * c.height;
+        g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = "#E0007A"; g.fill();
+        g.lineWidth = Math.max(2, r / 6); g.strokeStyle = "#FFFFFF"; g.stroke();
+        g.fillStyle = "#FFFFFF"; g.font = `700 ${Math.round(r * 1.1)}px system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(String(p.n), x, y + 1);
+      }
+      try { resolve(c.toDataURL("image/png")); } catch { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 }
 
 function lightbox(src) {

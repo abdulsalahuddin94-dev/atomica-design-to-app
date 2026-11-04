@@ -4,6 +4,29 @@ Every mistake Abdul reports or a check finds gets one entry here in the session 
 
 Teammates share their lessons through `/contribute` (`CONTRIBUTING.md`); an entry lands here only after Abdul accepts it, marked `(contributed by <login>)`.
 
+## Screens did not match the running source; frames under 900 high (2026-11-03)
+1. **Each code-to-Figma sync left color, shape and size differences (Abdul).** Abdul had to send screenshots after every build to point them out.
+   Cause: the comparison was a screenshot next to the source, judged by eye at reduced scale; 12 vs 14 px text, 500 vs 600 weight, 16 vs 20 radius and line-height drift do not show at that scale, and values with no exact variable were snapped to the nearest one without saying so. The first measured run on one profile screen found 71 differences the eye check had passed. Rule: measured fidelity (screens.md 7f step 4b): dump the running source and the Figma frame, run `tools/fidelity_diff.py`, fix until Open differences is 0 or explained; list unmatched exact values for approval. Check: no screen is reported without its `audits/<date>-fidelity-<screen>.md`.
+2. **Desktop screens were 1440 x 776 and 1440 x 880.** Cause: the screen-fitting helper used in the build scripts hugged the content with an 880 minimum instead of the 900 floor, and older screens were never re-checked. Rule: helpers take the floor from section 7d (Desktop height at least 900, Mobile 375 x 812); after any re-layout run `tools/check_screens.figma.js` (`frameSize`). Check: ds-auditor screens mode reports every frame under the floor.
+
+## Moving nodes between instance slots (2026-11-02)
+1. **Cells moved from one slot to another could not be read or edited by scripts afterwards.** In the Requests table, shifting slot contents one column right (to make room for Task) rendered correctly, but every moved node threw "node does not exist" on read, so styling them later failed.
+   Rule: to change a slot's content, build or clone new nodes into the target slot and remove the old ones; never move existing slot children between slots of an instance. Check: read the target slot's children right after the change; any read error means the content was moved.
+2. **Resize and sizing overrides on cells inside an instance are ignored.** Header cells could not be resized to match a different row component. Rule: pair components that share the same cell sizing (Table Header Row with Table Row / Table Row Custom, all cells fill) instead of resizing nested cells.
+
+## Re-laying out a screen grid deleted a card (2026-11-02)
+1. **The Empty State Overview lost its Project Health card.** The script picked cards by layer name; two instances were both named "Project Health" (the status card and the Stage Gates empty card), so one was moved twice and the real status card stayed in the old column, which the script then removed.
+   Rule: when moving children into a new layout, pick nodes by main component (set + variant) or id, never by layer name alone, and remove an old container only when it is empty (`children.length === 0`). Check: count the instances in the grid before and after the move; the counts must match.
+
+## FigCli writes: fonts, tints and file target (2026-11-01)
+1. **A write script hung until the 60 s FigCli timeout and changed nothing.** It created text nodes without loading Inter, the default font of `figma.createText()`; the same happened when setting `textAlignHorizontal` on a text whose font was not loaded.
+   Cause: an unloaded-font write does not throw through FigCli eval, it stalls. Rule: every script that creates text loads Inter Regular plus each target font first, and any text property write (alignment, characters, decoration) loads that node's font. Check: wrap write scripts in try/catch and time the first run; a timeout with no error means a missing font load.
+2. **10% / 30% fills went back to 100% after a Light-mode screenshot.** Paint opacity on a variable-bound paint was reset to 1 when `setExplicitVariableModeForCollection` was called on the node or an ancestor (it also reset an older 70% text in the Project Card, restored from the saved version through the REST API).
+   Rule: transparent tints of a token are separate layers ("Tint Fill" / "Tint Border", absolute, stretch) whose layer opacity carries the alpha, never paint opacity on a bound paint. Light screenshots are taken from a temporary frame of instances with the mode pinned there, then deleted; never pin modes on the original. Check: after any mode pin, re-read paint opacities of bound paints.
+3. **A FigCli command with FIGMA_FILE set ran on the other open file.** A stale elevated daemon answered some commands for another open file while FIGMA_FILE named the DS file.
+   Rule: every write script starts with `if (figma.fileKey !== '<key>') return` before any change. Check: the first line of the script result names the file.
+4. **Screenshots looked solid because the PNG alpha was dropped when combining images.** Rule: composite exports with alpha onto the mode background (dark surface or white) before judging colors.
+
 ## Sync to Figma from the prototype (2026-11-01)
 1. **A slot waited on the Desktop Bridge although FigCli could make it (found while syncing).** The Bridge plugin had connected to another figma-console instance (port 9223, another session), so this session's server saw no file.
    Cause: `decisions.md` says `figma.createSlot` is missing in FigCli; in this Figma build `COMPONENT.createSlot()` exists in FigCli eval too. Rule: before asking for the Bridge, check `typeof variant.createSlot` through FigCli; on a set, call it per variant, then point the extra variants' slot at the first property (`slot.componentPropertyReferences = {slotContentId}`) and `deleteComponentProperty` the duplicate. Check: `componentPropertyDefinitions` lists one SLOT property. Bridge "no files connected" with `otherInstances` in `figma_get_status` = close and reopen the plugin.

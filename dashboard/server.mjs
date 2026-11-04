@@ -14,6 +14,7 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { TOOLS, toolStatus, loginCommand, antigravityPath, usageStore, handoffCommand, LIMIT_RE, which } from "./tools.mjs";
 import { startAcp } from "./acp.mjs";
@@ -50,6 +51,9 @@ const LOGS = path.join(STATE, "dashboard-logs"); // one file per Claude session:
 const SETTINGS = path.join(STATE, "dashboard-settings.json");
 const PORT = Number(process.env.DASHBOARD_PORT || 4777);
 const HOST = "127.0.0.1";
+// Shared with the skills: plain-word tooltips (Intake section 0, Plain words) and phase times (tools/phase_times.cjs).
+const GLOSSARY = path.join(ROOT, "Design_System_Intake_Skill", "glossary.json");
+const { phaseTimes } = createRequire(import.meta.url)(path.join(ROOT, "tools", "phase_times.cjs"));
 
 // ---------- small helpers ----------
 const readJson = (file, fallback = null) => {
@@ -1268,6 +1272,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && p === "/api/workflow") return send(res, 200, workflowInfo(url.searchParams.get("fetch") === "1"));
     if (req.method === "GET" && p === "/api/styles") return send(res, 200, readStyles());
+    if (req.method === "GET" && p === "/api/glossary") return send(res, 200, readJson(GLOSSARY, { terms: {} }));
+    if (req.method === "GET" && p === "/api/phase-times") return send(res, 200, { phases: phaseTimes(ROOT) });
     const sm = req.method === "GET" && p.match(/^\/api\/styles\/([a-z0-9-]+)$/);
     if (sm) { const s = readStyle(sm[1]); return send(res, s ? 200 : 404, s || { error: "Style not found" }); }
     if (req.method === "POST" && p === "/api/workflow/update") return send(res, 200, updateWorkflow());
