@@ -16,6 +16,12 @@ body.rail .side-nav a.on::before{left:-12px}
 body.rail .collapse-btn .ic{transform:rotate(180deg)}
 body.rail .side-foot{flex-direction:column}
 body.rail .side-nav a[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);background:var(--key);color:var(--on-key);font-size:12.5px;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:40;pointer-events:none}
+/* narrow window (a third of the screen beside Figma): the rail stays a full-height column on the left */
+@media (max-width: 960px){
+  body.rail .sidenav{position:sticky;top:5px;align-self:start;height:calc(100dvh - 5px);border-bottom:0;border-right:1px solid var(--rule);gap:22px;padding:22px 12px 18px}
+  body.rail .side-nav{grid-auto-flow:row;justify-content:stretch}
+  body.rail .side-foot{margin-top:auto}
+}
 .side-nav .count{margin-left:auto;font:600 11px var(--mono);padding:1px 6px;border-radius:999px;background:var(--magenta-soft);color:var(--magenta-ink)}
 .side-nav .count.y{background:var(--yellow-soft);color:var(--yellow-ink)}
 .project-nav{display:grid;gap:2px}

@@ -26,8 +26,17 @@ function initRail() {
   };
   let saved = null;
   try { saved = localStorage.getItem("menuRail"); } catch {}
-  set(saved === "1");
-  btn.addEventListener("click", () => set(!document.body.classList.contains("rail")));
+  // A narrow window (the dashboard at a third of the screen beside Figma) starts with the rail, so the page keeps its
+  // height; the button still opens the full menu there, and that choice is not saved over the wide-window one.
+  const narrow = matchMedia("(max-width: 960px)");
+  const apply = () => { if (narrow.matches) document.body.classList.add("rail"); else set(saved === "1"); };
+  apply();
+  narrow.addEventListener("change", apply);
+  btn.addEventListener("click", () => {
+    const on = !document.body.classList.contains("rail");
+    if (narrow.matches) document.body.classList.toggle("rail", on); else { saved = on ? "1" : "0"; set(on); }
+    btn.setAttribute("aria-label", on ? "Expand the menu" : "Collapse the menu"); btn.title = btn.getAttribute("aria-label");
+  });
   // tooltips for the rail: the label of each menu link
   for (const a of document.querySelectorAll(".side-nav a")) if (!a.dataset.tip) a.dataset.tip = a.textContent.trim();
 }
