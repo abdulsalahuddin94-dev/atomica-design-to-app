@@ -1373,16 +1373,36 @@ async function editorBanner(main, p) {
   let e;
   try { e = await api(`/api/project/${enc}/github/editor`); } catch { return; }
   if (!e || e.off) return;
+  let box;
+  // Not signed in to GitHub: Start editing / Take over opens the GitHub sign-in (gh auth login --web, browser) and
+  // waits for it, then takes the project, instead of an error dialog.
+  const signInThenTake = async (action) => {
+    try {
+      const r = await api("/api/github/login", {});
+      if (!r.ok) { toast(r.message || "Could not open the GitHub sign-in."); return; }
+    } catch (err) { showError(err); return; }
+    let stop = false;
+    const wait = el("div", { class: "ed-banner free", role: "status" }, icon("i-login"),
+      el("span", {}, "Finish signing in to GitHub in your browser (press Enter in the window that opened, then paste the code it shows). You become the editor right after."),
+      el("button", { class: "ghost sm", type: "button", onclick: () => { stop = true; wait.replaceWith(box); } }, "Cancel"));
+    box.replaceWith(wait);
+    for (const until = Date.now() + 5 * 60e3; !stop && Date.now() < until;) {
+      await new Promise((ok) => setTimeout(ok, 3000));
+      let s; try { s = await api(`/api/project/${enc}/github/editor`); } catch { continue; }
+      if (s?.me) { e.me = s.me; if (!stop) { wait.replaceWith(box); act(action); } return; }
+    }
+    if (!stop) { wait.replaceWith(box); toast("GitHub sign-in did not finish. Try Start editing again."); }
+  };
   const act = async (action, extra = {}) => {
+    if (!e.me && action === "take") return signInThenTake(action);
     try {
       const r = await api(`/api/project/${enc}/github/editor`, { action, ...extra });
       toast(r.asked ? `Asked ${r.asked} to hand over. You can edit once they do.` : r.fromStale ? `${r.fromStale} had not edited for a while; you are the editor now.` : action === "take" ? "You are the editor now." : action === "handover" ? "Handed over." : "You keep editing.");
       if (r.note) toast(r.note);
       renderProjectPage(p.name, decodeURIComponent(location.hash.split("/")[3] || "pipeline"));
-    } catch (err) { showError(err); }
+    } catch (err) { if (err.code === "github_signin") return signInThenTake(action); showError(err); }
   };
   const when = (t) => (t ? fmtDate(t) : "");
-  let box;
   if (e.mine && e.request) box = el("div", { class: "ed-banner ask", role: "status" }, icon("i-users"),
     el("span", {}, el("b", {}, e.request.by), ` asks to take over this project (${when(e.request.at)}).`),
     el("button", { class: "primary sm", type: "button", onclick: () => act("handover", { toRequester: true }) }, `Hand over to ${e.request.by}`),
