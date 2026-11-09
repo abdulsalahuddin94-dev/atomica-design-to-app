@@ -7,10 +7,12 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 const { userEnv } = createRequire(import.meta.url)("../tools/publish_checks.cjs");
 const figmaSync = createRequire(import.meta.url)("../tools/figma_sync.cjs");
 const sbSections = createRequire(import.meta.url)("../tools/storybook_sections.cjs");
 const projectRepo = createRequire(import.meta.url)("../tools/project_repo.cjs");
+const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // a tool run to completion, its JSON answer (or the error text)
 function runTool(root, tool, args, json) {
   const r = spawnSync(process.execPath, [path.join(root, "tools", tool), ...args], { cwd: root, encoding: "utf8", windowsHide: true, timeout: 60000, env: userEnv() });
@@ -386,7 +388,13 @@ async function startPreview(dir) {
   const proto = path.join(dir, "prototype");
   const vite = path.join(proto, "node_modules", "vite", "bin", "vite.js");
   if (!fs.existsSync(vite)) return { ok: false, error: "The prototype's packages are not installed (npm install in its prototype folder)." };
-  const child = spawn(process.execPath, [vite, "--port", String(PREVIEW_PORT), "--strictPort", "--host", "127.0.0.1"], { cwd: proto, env: previewEnv(dir), stdio: "ignore", windowsHide: true });
+  // An imported or Vibe code app (no generated prototype shell) runs with the review comment overlay injected
+  // (tools/comment_overlay/run.mjs): pins on any element, same Supabase table and project slug, nothing added to its repo.
+  const imported = !fs.existsSync(path.join(proto, "src", "generated", "routes.tsx"));
+  const slug = path.basename(dir).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const cmd = imported ? [path.join(ROOT_DIR, "tools", "comment_overlay", "run.mjs"), proto, "--project", slug, "--port", String(PREVIEW_PORT)]
+    : [vite, "--port", String(PREVIEW_PORT), "--strictPort", "--host", "127.0.0.1"];
+  const child = spawn(process.execPath, cmd, { cwd: proto, env: previewEnv(dir), stdio: "ignore", windowsHide: true });
   previews.set(dir, child);
   child.on("exit", () => { if (previews.get(dir) === child) previews.delete(dir); });
   for (let i = 0; i < 40; i++) {
