@@ -32,6 +32,8 @@ Say "study this design system" with the company name, the platform(s) and the Fi
 5. **Compare with the platform Main Skill.** Mistakes the file makes go into its `gaps.md`; a lesson that applies to every project goes into the Main Skill (section 9 or 10) without the company name.
 6. **Ready.** Set the entry's `status` to `"ready"` (and `default` if it should be the platform default), update `memory/references.md`, log it and commit.
 
+**A user's own design system (Abdul, 2026-11-09):** a company DS that is not public is studied the same way but into `My References/<Company>/<Platform>/` with its own `My References/references.json` (git-ignored, this repo is public), never into `Reference_Library/`. Every project on that computer can use it (intake 16.2, Greenfield 3.1 / 3.2). It moves to the public library only after the user confirms it may be shared. Details: `Design_System_Intake_Skill/steps/vibe-code.md` 16.3.
+
 What users see afterwards: Greenfield 3.1 offers "Start from a reference template"; when a platform has more than one ready entry, a menu lists them by `name` with the default first (Recommended). Entries still `studying` are never offered.
 
 Rules: platforms stay independent (one entry per platform, nothing shared or merged between entries); a cross-platform entry (one shared design for Flutter / React Native custom UI) is offered when intake 1.3 picks cross-platform; never edit the original file.
