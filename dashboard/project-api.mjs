@@ -11,6 +11,7 @@ const { userEnv } = createRequire(import.meta.url)("../tools/publish_checks.cjs"
 const figmaSync = createRequire(import.meta.url)("../tools/figma_sync.cjs");
 const sbSections = createRequire(import.meta.url)("../tools/storybook_sections.cjs");
 const projectRepo = createRequire(import.meta.url)("../tools/project_repo.cjs");
+const versions = createRequire(import.meta.url)("../tools/versions.cjs");
 // a tool run to completion, its JSON answer (or the error text)
 function runTool(root, tool, args, json) {
   const r = spawnSync(process.execPath, [path.join(root, "tools", tool), ...args], { cwd: root, encoding: "utf8", windowsHide: true, timeout: 60000, env: userEnv() });
@@ -405,6 +406,39 @@ function stopPreview(dir) {
   return { ok: true };
 }
 
+// ---------- Version history (code projects, tools/versions.cjs) ----------
+// Every finished request in a code project becomes a version; an old version is viewed read only from a separate copy
+// on its own port (5191), so the working preview on 5190 keeps running.
+const VIEW_PORT = 5191;
+let viewing = null; // { dir, sha, child }
+export function autoVersion(dir, message) {
+  try { return versions.enabled(dir) && versions.locate(dir).exists ? versions.snapshot(dir, message) : { ok: true, created: false }; } catch (e) { return { ok: false, error: e.message }; }
+}
+function stopView() {
+  if (viewing?.child && viewing.child.exitCode === null) viewing.child.kill();
+  viewing = null;
+}
+async function startView(dir, sha) {
+  if (viewing?.dir === dir && viewing.sha.startsWith(sha) && viewing.child.exitCode === null) return { ok: true, url: `http://localhost:${VIEW_PORT}/` };
+  stopView();
+  const w = versions.view(dir, sha);
+  if (!w.ok) return w;
+  const vite = path.join(w.app, "node_modules", "vite", "bin", "vite.js");
+  if (!fs.existsSync(vite)) return { ok: false, error: "The app's packages are not installed, so an old version cannot be shown (npm install in its prototype folder first)." };
+  const child = spawn(process.execPath, [vite, "--port", String(VIEW_PORT), "--strictPort", "--host", "127.0.0.1"], { cwd: w.app, env: previewEnv(dir), stdio: "ignore", windowsHide: true });
+  viewing = { dir, sha: w.sha, child };
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 400));
+    if ((await localPreview(VIEW_PORT)).running) return { ok: true, url: `http://localhost:${VIEW_PORT}/`, sha: w.sha };
+    if (child.exitCode !== null) break;
+  }
+  stopView();
+  return { ok: false, error: `The old version did not start (is port ${VIEW_PORT} used by another program?).` };
+}
+async function versionsState(dir) {
+  return { enabled: versions.enabled(dir), ...versions.list(dir, 100), viewing: viewing?.dir === dir ? viewing.sha : null };
+}
+
 // The daily sync check as a Windows scheduled task ("Atomica sync check"): it runs tools/sync_watch.cjs for every project
 // (no AI, no tokens; a change only writes a short note for the Sync badge). Created and removed only from the user's
 // click. The command lives in ~/.atomica/sync-check.cmd so paths with spaces stay safe.
@@ -781,6 +815,23 @@ export async function handleProjectApi(req, res, url, { send, projectDir, readBo
     if (!["code-first", "figma-first"].includes(b.mode)) { send(res, 400, { error: "bad mode" }); return true; }
     setDesignMode(dir, b.mode);
     send(res, 200, await designState(dir));
+    return true;
+  }
+  if (req.method === "GET" && m[2] === "versions") { send(res, 200, await versionsState(dir)); return true; }
+  if (req.method === "POST" && m[2].startsWith("versions/")) {
+    const b = await readBody(req);
+    const sha = String(b.sha || "");
+    const act = m[2].slice(9);
+    if (act !== "snapshot" && act !== "view-stop" && !/^[0-9a-f]{7,40}$/i.test(sha)) { send(res, 400, { error: "bad version" }); return true; }
+    let r;
+    if (act === "snapshot") r = versions.snapshot(dir, String(b.message || "Saved by hand").slice(0, 120));
+    else if (act === "revert") { if (viewing?.dir === dir) stopView(); r = versions.revert(dir, sha); }
+    else if (act === "bookmark") r = versions.bookmark(dir, sha, String(b.label || "Bookmark").slice(0, 80));
+    else if (act === "unbookmark") r = versions.unbookmark(dir, sha);
+    else if (act === "view") r = await startView(dir, sha);
+    else if (act === "view-stop") { stopView(); versions.clearViews(dir); r = { ok: true }; }
+    else { send(res, 404, { error: "unknown" }); return true; }
+    send(res, r.ok === false ? 400 : 200, r.ok === false ? r : { ...r, state: await versionsState(dir) });
     return true;
   }
   if (req.method === "POST" && m[2] === "preview/start") { const r = await startPreview(dir); send(res, r.ok ? 200 : 400, r.ok ? await designState(dir) : r); return true; }

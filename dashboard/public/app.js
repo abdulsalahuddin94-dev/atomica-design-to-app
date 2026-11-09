@@ -1379,6 +1379,11 @@ function renderChat(id, mount) {
         if (e.ok && wiz.typed && !state.pending.size) { closeInputCard(); wiz.open = add(inputCard(wiz.typed)); wiz.typed = null; }
         if (!e.ok && e.error) add(el("div", { class: "sys err" }, e.error));
         break;
+      case "version":
+        // a code project saved this request as a version (the Design page's History panel lists it)
+        add(el("div", { class: e.error ? "sys err" : "sys" }, e.error ? e.error : `Saved as a version (${String(e.sha || "").slice(0, 7)}). History shows every version.`));
+        window.dispatchEvent(new CustomEvent("project-version", { detail: e }));
+        break;
       case "error":
         add(el("div", { class: "sys err" }, e.message));
         break;
