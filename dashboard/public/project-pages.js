@@ -527,7 +527,7 @@ async function drawDesign(main, p) {
       ic ? icon(ic) : null, icons ? null : text)));
   const tool = (k, label, ic, count) => el("button", { type: "button", class: `ws-tool${view.tool === k ? " on" : ""}`, "aria-pressed": String(view.tool === k), title: label, "aria-label": label,
     onclick: () => setTool(view.tool === k ? null : k) }, icon(ic), count ? el("span", { class: "ws-count" }, String(count)) : null);
-  const openOnScreen = () => comments.filter((c) => c.status !== "resolved" && c.screen === view.screen).length;
+  const openOnScreen = () => (importedApp() ? overlayOpen : comments.filter((c) => c.status !== "resolved" && c.screen === view.screen).length);
   // The screen picker: a list with search, grouped by module (a project can have 100+ screens).
   const goScreen = (slug) => { view.screen = slug; view.device = autoDevice(); view.comment = null; pop.hidden = true; screensMenu.hidden = true; saveView(); loadFrame(); drawBar(); };
   function openScreens(anchor) {
@@ -607,14 +607,19 @@ async function drawDesign(main, p) {
     catch (e) { showError(e); }
     drawBar();
   }
+  // An imported or Vibe code app has no generated screens: its injected comment overlay (tools/comment_overlay) draws the
+  // pins and the form itself; the toolbar's Comment button only switches it on and off.
+  const importedApp = () => !st.screens.length && st.local.running;
+  let overlayOpen = 0;
   async function setTool(k) {
     view.tool = k; view.comment = null; pop.hidden = true;
+    if (importedApp()) { frame.contentWindow?.postMessage({ type: "atomica:tool", tool: k }, "*"); drawBar(); return; }
     loadFrame(); drawBar();
     if (k === "comment") await loadComments(true);
   }
   const byId = (id) => comments.find((c) => c.id === id);
   function drawList() {
-    list.hidden = view.tool !== "comment";
+    list.hidden = view.tool !== "comment" || importedApp();
     if (list.hidden) return;
     const open = comments.filter((c) => c.status !== "resolved" && c.screen === view.screen);
     const n = (c) => pins.find((x) => x.id === c.id)?.n;
@@ -634,6 +639,7 @@ async function drawDesign(main, p) {
   const onMessage = (ev) => {
     if (!canvas.isConnected) { window.removeEventListener("message", onMessage); return; }
     if (ev.source !== frame.contentWindow || !ev.data || typeof ev.data !== "object") return;
+    if (ev.data.type === "atomica:overlay") { overlayOpen = ev.data.open || 0; drawBar(); if (view.tool === "comment") frame.contentWindow?.postMessage({ type: "atomica:tool", tool: "comment" }, "*"); }
     if (ev.data.type === "atomica:comments") { pins = ev.data.items || []; if (pins.some((x) => !byId(x.id))) loadComments(true); else drawList(); postStatuses(); }
     if (ev.data.type === "atomica:comment") { view.comment = ev.data.id; showPop(ev.data.id, ev.data.rect); drawList(); }
   };
