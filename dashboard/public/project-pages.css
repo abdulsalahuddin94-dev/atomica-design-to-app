@@ -422,3 +422,31 @@ body.rail.focus .shell{grid-template-columns:minmax(0,1fr)}
 .chip.g{background:color-mix(in srgb,var(--good) 14%,var(--sheet));border-color:transparent;color:var(--good)}
 .chip.y{background:var(--yellow-soft);border-color:transparent;color:var(--yellow-ink);white-space:normal}
 @media (max-width:720px){.bk{grid-template-columns:1fr}.bk-steps{border-right:0;border-bottom:1px solid var(--rule)}.bk-safe{grid-template-columns:1fr}}
+/* Version history (code projects): History / Bookmarks over the chat, a read-only bar over the preview */
+.ws-histbtn{flex:none}
+.ws-histbtn.on{border-color:var(--cyan);color:var(--cyan-ink)}
+.ws-hist{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;padding:10px 12px 16px;gap:8px}
+.ws-hhead{display:flex;align-items:center;gap:8px}
+.ws-hhead .sp,.ws-viewbar .sp{flex:1}
+.ws-htabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border:1px solid var(--rule);border-radius:999px}
+.ws-htabs button{display:flex;align-items:center;justify-content:center;gap:6px;height:34px;border:0;border-radius:999px;background:none;color:var(--ink-2);font:600 13px var(--sans);cursor:pointer}
+.ws-htabs button.on{background:var(--rule);color:var(--ink)}
+.ws-hnote{margin:4px 2px}
+.ws-hlist{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.ws-hitem{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;border-radius:10px;border:1px solid transparent}
+.ws-hitem:hover,.ws-hitem:focus-within{background:var(--rule)}
+.ws-hitem.on{border-color:var(--cyan)}
+.ws-hmain{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 10px;border:0;background:none;color:var(--ink);text-align:start;cursor:pointer;font:inherit}
+.ws-hmsg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px;unicode-bidi:plaintext}
+.ws-hdate{flex:none;font-size:12px;color:var(--ink-3)}
+.ws-hitem.cur .ws-hdate{color:var(--cyan-ink);font-weight:600}
+.ws-hacts{display:flex;gap:2px;padding-inline-end:6px;opacity:0}
+.ws-hitem:hover .ws-hacts,.ws-hitem:focus-within .ws-hacts,.ws-hacts .on{opacity:1}
+.ws-hacts .ws-tool.on{color:var(--cyan-ink)}
+.ws-hitem .tag.pub{margin-inline-end:6px;border-color:var(--cyan);color:var(--cyan-ink)}
+.ws-hconfirm{grid-column:1/-1;padding:4px 10px 10px;display:grid;gap:8px}
+.ws-hconfirm .row{display:flex;gap:8px}
+.ws-viewbar{position:absolute;top:64px;white-space:nowrap;left:50%;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:10px;padding:6px 8px 6px 14px;border-radius:999px;background:var(--sheet);border:1px solid var(--cyan);box-shadow:0 6px 24px rgb(0 0 0 / .18);font-size:13px;max-width:calc(100% - 24px)}
+@media (hover:none){.ws-hacts{opacity:1}}
+.ws-hist[hidden],.ws-chat[hidden]{display:none}
+.ws-viewbar .sm{white-space:nowrap}

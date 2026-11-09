@@ -47,3 +47,13 @@ Record `Project_Brief.md > 16.2` and `status.json > design_system_source` (`code
 - Every later project on this computer offers its ready entries in 16.2 and in Greenfield 3.1 / 3.2, after the public library entries.
 - An entry moves to the public `Reference_Library/` only when the user says the DS is public or they are allowed to share it, and after their yes at that moment (then `/contribute`).
 - The original Figma file stays read only (the guard hook asks before any write, as for every reference).
+
+## 16.4 Version history (Abdul, 2026-11-09)
+
+Every Vibe code / Code first project keeps a version history of its app folder, like Lovable's History panel (`tools/versions.cjs`, the dashboard's Design page > **History**).
+- **A version per request:** when a dashboard request in the project finishes, what it changed in the app folder is saved as one version named after the request (nothing changed = no version). A terminal session saves one at the end of each request the same way: `node tools/versions.cjs "My Projects/<P>" --snapshot "<the request in a few words>"`. Publishing saves one called "Published", marked in the list.
+- **Where:** the git repo of the app folder (`prototype/`, or `status.json > versions.app`). An imported Lovable / v0 repo shows its own earlier commits too; a project with no repo gets a local one in its folder (nothing is pushed). Only the app folder is versioned and reverted, never the brief, `status.json` or `CHANGELOG.md`.
+- **View:** a press on a version shows it read only in the preview (a separate copy on port 5191; the working preview keeps running), with "Revert to this" and "Back to current".
+- **Revert:** asks first, then saves any unsaved work as "Before revert", and makes a new version with the old content. Nothing is deleted, so the user can come back.
+- **Bookmarks:** name a version to find it again (a local git tag `atomica-bookmark-*`).
+- A key or token in the app stops the version and names the file (the project secrets scan).

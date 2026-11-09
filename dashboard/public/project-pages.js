@@ -309,13 +309,17 @@ async function drawDesign(main, p) {
 
   // ----- left: chat -----
   const modeSeg = el("div", { class: "p-seg", role: "radiogroup", "aria-label": "How changes start" });
+  // Version history (code projects, tools/versions.cjs): Lovable-like History / Bookmarks panel over the chat.
+  const hist = { open: false, tab: "history", data: null, ask: null, busy: false };
+  const histBtn = el("button", { class: "ghost sm ws-histbtn", type: "button", hidden: true, "aria-pressed": "false", title: "Version history", "aria-label": "Version history", onclick: () => toggleHistory() }, icon("i-clock"), "History");
+  const histPanel = el("section", { class: "ws-hist", "aria-label": "Version history", hidden: true });
   const chatBody = el("div", { class: "ws-chat" });
   const chatCol = el("section", { class: "ws-col", "aria-label": "Design conversation" },
     el("div", { class: "ws-head" },
       el("div", { class: "crumbs" }, el("a", { href: "#/projects" }, "Projects"), ` / ${p.title}`),
-      el("div", { class: "row" }, el("h1", {}, "Design"), modeSeg),
+      el("div", { class: "row" }, el("h1", {}, "Design"), modeSeg, histBtn),
       el("p", { class: "muted small" }, "Only design-system components and tokens. A missing component becomes a DS gap first.")),
-    chatBody);
+    histPanel, chatBody);
 
   const setMode = async (mode) => {
     try { st = await api(`/api/project/${enc}/design/mode`, { mode }); drawMode(); drawBar(); loadFrame(); if (!sessionId()) drawStarter(); if (pendingApply) { const c = pendingApply; pendingApply = null; applyNow(c); } }
@@ -471,7 +475,7 @@ async function drawDesign(main, p) {
   let comments = []; // from the dashboard (pulled from Supabase): author, body, images, triage
   let pins = []; // from the prototype: the open comments of this screen, numbered as their pins
   const setCollapsed = (on) => { collapsed = on; try { localStorage.setItem("designPill", on ? "closed" : "open"); } catch {} drawBar(); };
-  const baseUrl = () => (view.where === "local" ? st.local.url : st.publish?.url) || null;
+  const baseUrl = () => (hist.viewUrl || (view.where === "local" ? st.local.url : st.publish?.url)) || null;
   // embed=1: the prototype hides its own screen list, banner, picker and toolbar (this page has them); a new tab shows
   // it whole. tool and comment drive its comment, code and inspect modes.
   const screenUrl = (embed = true) => {
@@ -487,6 +491,17 @@ async function drawDesign(main, p) {
     const sc = st.screens.find((s) => s.slug === view.screen);
     badge.hidden = !(sc?.source === "code");
     badge.textContent = `${sc?.name || ""} · code ahead of Figma`;
+    if (hist.viewUrl) {
+      const v = hist.data?.versions.find((x) => x.sha === hist.viewing);
+      const bar = el("div", { class: "ws-viewbar", role: "status" }, icon("i-clock"),
+        el("span", {}, "Viewing ", el("b", {}, v ? fmtWhen(v.at) : "an old version"), " · read only"),
+        el("span", { class: "sp" }),
+        v && !v.current ? el("button", { class: "ghost sm", type: "button", onclick: () => { askRevert(v.sha); if (!hist.open) toggleHistory(true); } }, icon("i-undo"), "Revert to this") : null,
+        el("button", { class: "primary sm", type: "button", onclick: () => stopViewing() }, "Back to current"));
+      if (frame.dataset.src !== url || force) { frame.dataset.src = url; frame.src = url; }
+      canvas.replaceChildren(bar, el("div", { class: "ws-device" }, frame));
+      return;
+    }
     if (view.where === "local" && !st.local.running) {
       canvas.replaceChildren(el("div", { class: "p-empty ws-off" },
         el("p", {}, el("b", {}, "The local preview is not running.")),
@@ -499,7 +514,7 @@ async function drawDesign(main, p) {
     // The frame is another origin, so a refresh reloads it with a cache-busting query; anything else only changes the hash.
     if (force) { const u = new URL(url); u.searchParams.set("r", Date.now()); frame.src = u.href; frame.dataset.src = url; }
     else if (frame.dataset.src !== url) { frame.dataset.src = url; frame.src = url; }
-    if (!canvas.contains(frame)) canvas.replaceChildren(badge, el("div", { class: "ws-device" }, frame));
+    if (!canvas.contains(frame) || canvas.querySelector(".ws-viewbar")) canvas.replaceChildren(badge, el("div", { class: "ws-device" }, frame));
   }
   async function startLocal(ev) {
     const b = ev.currentTarget; b.disabled = true; b.lastChild.textContent = "Starting…";
@@ -943,6 +958,71 @@ async function drawDesign(main, p) {
     drawBar();
   }
 
+  // ----- version history -----
+  async function loadHistory() {
+    try { hist.data = await api(`/api/project/${enc}/versions`); } catch (e) { hist.data = { enabled: false, versions: [], error: e.message }; }
+    histBtn.hidden = !hist.data.enabled;
+    if (hist.open) drawHistory();
+  }
+  function toggleHistory(force) {
+    hist.open = force ?? !hist.open;
+    histBtn.setAttribute("aria-pressed", String(hist.open));
+    histBtn.classList.toggle("on", hist.open);
+    histPanel.hidden = !hist.open; chatBody.hidden = hist.open;
+    if (hist.open) { drawHistory(); loadHistory(); }
+  }
+  const histAct = async (act, body, done) => {
+    hist.busy = true; drawHistory();
+    try { const r = await api(`/api/project/${enc}/versions/${act}`, body); if (r.state) hist.data = r.state; if (done) await done(r); }
+    catch (e) { showError(e); }
+    hist.busy = false; drawHistory();
+  };
+  async function viewVersion(sha) {
+    await histAct("view", { sha }, (r) => { hist.viewing = r.sha; hist.viewUrl = r.url; loadFrame(true); });
+  }
+  async function stopViewing() {
+    hist.viewing = null; hist.viewUrl = null; loadFrame(true); drawHistory();
+    api(`/api/project/${enc}/versions/view-stop`, {}).catch(() => {});
+  }
+  function askRevert(sha) { hist.ask = sha; drawHistory(); }
+  function drawHistory() {
+    if (!hist.open) return;
+    const d = hist.data;
+    const tabs = el("div", { class: "ws-htabs", role: "tablist" }, ...[["history", "History", "i-clock"], ["bookmarks", "Bookmarks", "i-bookmark"]].map(([k, label, ic]) =>
+      el("button", { type: "button", role: "tab", class: hist.tab === k ? "on" : null, "aria-selected": String(hist.tab === k), onclick: () => { hist.tab = k; drawHistory(); } }, icon(ic), label)));
+    const head = el("div", { class: "ws-hhead" }, el("b", {}, "Versions"), el("span", { class: "sp" }),
+      el("button", { class: "textbtn", type: "button", onclick: () => toggleHistory(false) }, icon("i-x"), "Close"));
+    if (!d) { histPanel.replaceChildren(head, tabs, el("p", { class: "muted small ws-hnote" }, "Reading the history…")); return; }
+    const rows = (d.versions || []).filter((v) => hist.tab === "history" || v.bookmark);
+    const note = d.dirty ? el("p", { class: "small ws-hnote" }, "Changes not saved as a version yet. ",
+      el("button", { class: "textbtn", type: "button", disabled: hist.busy || null, onclick: () => histAct("snapshot", { message: "Saved by hand" }) }, "Save a version now")) : null;
+    const item = (v) => {
+      const confirmRow = hist.ask === v.sha ? el("div", { class: "ws-hconfirm", role: "alert" },
+        el("p", { class: "small" }, "Go back to this version? Your current work stays in the history as its own version, so you can come back to it."),
+        el("div", { class: "row" },
+          el("button", { class: "primary sm", type: "button", disabled: hist.busy || null, onclick: () => histAct("revert", { sha: v.sha }, async (r) => { hist.ask = null; if (hist.viewing) { hist.viewing = null; hist.viewUrl = null; } toast(r.created ? "Reverted. The preview shows it now." : "That version already matches the current one: nothing changed."); loadFrame(true); }) }, icon("i-undo"), "Revert"),
+          el("button", { class: "ghost sm", type: "button", onclick: () => { hist.ask = null; drawHistory(); } }, "Cancel"))) : null;
+      return el("li", { class: `ws-hitem${hist.viewing === v.sha ? " on" : ""}${v.current ? " cur" : ""}` },
+        el("button", { type: "button", class: "ws-hmain", title: v.current ? "This is the current version" : "View this version (read only)", disabled: hist.busy || null, onclick: () => (v.current ? stopViewing() : viewVersion(v.sha)) },
+          el("span", { class: "ws-hmsg", dir: "auto" }, v.published ? el("span", { class: "tag pub" }, "Published") : null, v.bookmark && hist.tab === "bookmarks" ? el("b", { dir: "auto" }, v.bookmark, " · ") : null, v.message),
+          el("span", { class: "ws-hdate" }, v.current ? "Current" : fmtWhen(v.at))),
+        el("span", { class: "ws-hacts" },
+          v.current ? null : el("button", { type: "button", class: "ws-tool", title: "Revert to this version", "aria-label": "Revert to this version", onclick: () => askRevert(v.sha) }, icon("i-undo")),
+          el("button", { type: "button", class: `ws-tool${v.bookmark ? " on" : ""}`, title: v.bookmark ? `Bookmarked: ${v.bookmark} (remove)` : "Bookmark", "aria-label": v.bookmark ? "Remove the bookmark" : "Bookmark", onclick: async () => {
+            if (v.bookmark) return histAct("unbookmark", { sha: v.sha });
+            const label = await askText({ title: "Bookmark this version", help: "A short name so you find it again, e.g. Before the new home screen.", placeholder: "Bookmark name", okLabel: "Bookmark" });
+            if (label) histAct("bookmark", { sha: v.sha, label });
+          } }, icon("i-bookmark"))),
+        confirmRow);
+    };
+    histPanel.replaceChildren(...[head, tabs, note].filter(Boolean),
+      rows.length ? el("ol", { class: "ws-hlist" }, ...rows.map(item))
+        : el("p", { class: "muted small ws-hnote" }, hist.tab === "bookmarks" ? "No bookmarks yet. Press the bookmark icon on a version to keep it easy to find." : "No versions yet. Every request Claude finishes here becomes one."));
+  }
+  const fmtWhen = (iso) => { const t = new Date(iso); return isNaN(t) ? "" : t.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+  const onVersion = () => { if (!histPanel.isConnected) { window.removeEventListener("project-version", onVersion); return; } loadHistory(); };
+  window.addEventListener("project-version", onVersion);
+
   // Opened from Review (Apply online / Show on screen): that comment's screen, comments on, its pin focused, and for
   // Apply the request waiting in the chat box.
   if (q.get("comment")) {
@@ -956,7 +1036,7 @@ async function drawDesign(main, p) {
     }
     history.replaceState(null, "", `#/project/${enc}/design`);
   }
-  drawMode(); drawBar(); loadFrame();
+  drawMode(); drawBar(); loadFrame(); loadHistory();
   api(`/api/project/${enc}/figma-sync`).then((r) => { syncSt = r; drawBar(); }).catch(() => {});
   getFigmaTools().catch(() => {});
   await openChat();

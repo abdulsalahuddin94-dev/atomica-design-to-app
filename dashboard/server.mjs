@@ -18,7 +18,7 @@ import { createRequire } from "node:module";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { TOOLS, toolStatus, loginCommand, antigravityPath, usageStore, handoffCommand, LIMIT_RE, which } from "./tools.mjs";
 import { startAcp } from "./acp.mjs";
-import { handleProjectApi, projectLinks } from "./project-api.mjs";
+import { handleProjectApi, projectLinks, autoVersion } from "./project-api.mjs";
 import { createRequire as requireFrom } from "node:module";
 // However the dashboard was started (shortcut, script, another tool), its child processes (Claude, gh, git, publish)
 // get the user's full environment: home folders and the Git / GitHub CLI folders on PATH (tools/publish_checks.cjs).
@@ -476,6 +476,7 @@ function emit(s, event) {
   s.log.push(event);
   if (s.log.length > 4000) s.log.splice(0, s.log.length - 4000);
   if (!SKIP_SAVE.has(event.type)) scheduleSave(s);
+  if (event.type === "user" && event.text) s.lastAsk = event.text;
   if (event.type === "user" && !s.preview) s.preview = previewOf(event.text);
   const line = `data: ${JSON.stringify(event)}\n\n`;
   for (const res of s.clients) res.write(line);
@@ -843,6 +844,13 @@ async function pump(s) {
       if (error && LIMIT_RE.test(error)) hitLimit(s, error);
       if (AUTH_RE.test(error)) emit(s, { type: "auth", message: AUTH_MESSAGE, detail: error });
       emit(s, { type: "result", ok: m.subtype === "success", turns: m.num_turns, ms: m.duration_ms, error: AUTH_RE.test(error) ? "" : error });
+      // Code projects: what this request changed in the app becomes one version (History panel, tools/versions.cjs)
+      if (s.project && m.subtype === "success") {
+        const dir = projectDir(s.project);
+        const v = dir ? autoVersion(dir, s.lastAsk || s.title) : null;
+        if (v?.created) emit(s, { type: "version", sha: v.sha, message: s.lastAsk || s.title });
+        else if (v && v.ok === false) emit(s, { type: "version", error: v.error });
+      }
       emit(s, { type: "busy", busy: false });
       saveHistory(s);
     }
