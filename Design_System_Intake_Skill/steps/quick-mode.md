@@ -44,7 +44,7 @@ If the file belongs to a project in `My Projects/` (its key or exact name is in 
 
 **Audit only**
 1. Agree the scope, Ask (choice): "The whole file" / "One page" (description: name it in Other if it is not the current page) / "The current selection".
-   When the scope holds screens (not only components or foundations), Ask (multi): "What should the audit cover?" "Design system use (Recommended)" (description: components, variables, styles, fidelity) / "Usability" (description: Nielsen's 10 heuristics and Krug, each issue rated 0-4; `Workflow_References/ux-heuristics/README.md`) / "Back". Default: both ticked.
+   When the scope holds screens (not only components or foundations), Ask (multi): "What should the audit cover?" "Design system use (Recommended)" (description: components, variables, styles, fidelity) / "Usability" (description: Nielsen's 10 heuristics and Krug, each issue rated 0-4; `Workflow_References/ux-heuristics/README.md`) / "Back". Default: both ticked. **AI review (optional, on request only):** the user can also ask for Review design or Challenge the plan (`Workflow_References/ai-review/README.md`).
 2. Run `ds-auditor` (audit-design-system; screens mode for screen frames, plus `usability` mode when ticked). Read-only: nothing in Figma changes.
 3. Report the numbers and the issues, each with a proposed fix. Ask (multi): "Which issues should I fix?" one option per issue, or per issue type when there are more than 4. Fix only what the user ticks, then audit again.
 

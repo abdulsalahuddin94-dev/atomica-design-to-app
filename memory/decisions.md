@@ -115,6 +115,9 @@ updated: 2026-09-30
 ## Measured fidelity (Abdul, 2026-11-03)
 - Every pull from a running source (GitHub code run locally, a live app) into Figma had small color, shape and size differences that Abdul found by eye and sent as screenshots. Now each screen gets a measured check: `tools/source_dump.js` in the running source (same width, shell state, mode and data record as the Figma screen), `tools/figma_text_dump.figma.js` on the frame, `tools/fidelity_diff.py` report in `audits/`; Open differences must be 0 or explained before the screen is reported. Values with no matching variable are listed for approval, never silently snapped to the nearest. Screen frames are never below 1440 x 900 (Desktop) or 375 x 812 (Mobile); helper scripts and the audit enforce the floor. Rule: Design_System_Intake_Skill/steps/screens.md 7f step 4b.
 
+## AI review on request (Abdul, 2026-11-09)
+- Adopted two skills from alfaris/Design-AI-Skills (CC BY 4.0, Ahmed Faris, credited in `Workflow_References/`): `design-audit-panel` (**Review design**) and `devils-advocate-and-convincer` (**Challenge the plan**). On request or from the dashboard's **Audit** only: never a build step, a checkpoint or an automatic run, and a plain "audit" still means audit-design-system. They add product and business lenses and evidence tags; contrast and touch facts, DS binding and visual quality stay with ds-auditor, audit-design-system and Impeccable. Reports go to the project's `audits/`; fixes are a multi-select, DS components and tokens only, and nothing changes until the user picks. Rules: `Workflow_References/ai-review/README.md`.
+
 ## Radio vs Select (Abdul, 2026-09-30)
 - Radio groups hold 2 to 6 options; 7 or more use Select / Dropdown. Both component descriptions state the same number.
 

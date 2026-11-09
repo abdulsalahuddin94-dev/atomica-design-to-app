@@ -42,7 +42,7 @@ Feature or task, who does it, platform (from the Brief), where the user starts, 
 - Loading, error and empty are covered on every screen that loads data or submits.
 - Every decision has both branches mapped.
 - Every screen in the map appears in the gap table later (7e step 1); every state becomes a frame or a component state there.
-- **Usability pre-check (2026-10-13, text only, no question):** read the map against `Workflow_References/ux-heuristics/framework.md` > Quick Diagnostic and Nielsen 3 (an exit or back from every screen and overlay), 5 (destructive or irreversible steps have a confirm or undo), 9 (every error state says how to recover) and 4 (one name per concept across screens). Add what is missing to the map, or list it under "Not designed now" if the user should decide.
+- **Usability pre-check (2026-10-13, text only, no question):** read the map against `Workflow_References/ux-heuristics/framework.md` > Quick Diagnostic and Nielsen 3 (an exit or back from every screen and overlay), 5 (destructive or irreversible steps have a confirm or undo), 9 (every error state says how to recover) and 4 (one name per concept across screens). Add what is missing to the map, or list it under "Not designed now" if the user should decide. **AI review (optional, on request only):** the user can also ask for Challenge the plan on this map (`Workflow_References/ai-review/README.md`).
 
 ## Approval
 

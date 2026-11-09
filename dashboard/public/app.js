@@ -891,6 +891,7 @@ const fmtTime = (ms) => {
 const QUICK = [
   { label: "Continue", hint: "Resume from the project's next step", prompt: (p) => PROMPTS.project(p) },
   { label: "Run an audit", hint: "ds-auditor on the DS and Design files", prompt: (p) => `Run the audit (ds-auditor) on the project "${p}" and report the numbers.` },
+  { label: "Audit design or plan", hint: "Review the screens or challenge the plan", dialog: true },
   { label: "Add or change a component", hint: "Describe it, Claude follows the atomic rules", ask: "Which component, and what should change?", prompt: (p, t) => `In the project "${p}": ${t}` },
   { label: "Change a token", hint: "A color, spacing, radius or type value", ask: "Which token and what value?", prompt: (p, t) => `In the project "${p}", change this token: ${t}` },
   { label: "Update Storybook", hint: "Resync from the Figma DS file", prompt: (p) => `Update the Storybook of the project "${p}" from Figma.` },
@@ -1251,6 +1252,7 @@ function renderChat(id, mount) {
       actions.append(el("p", { class: "sub" }, "Quick actions"));
       for (const q of QUICK) {
         actions.append(el("button", { type: "button", onclick: async () => {
+          if (q.dialog) return openAuditDialog(p, ({ full, images }) => api(`/api/sessions/${id}/message`, { text: full, images }).catch(showError));
           let text = "";
           if (q.ask) { text = await askText({ title: q.label, help: q.ask, okLabel: "Send" }); if (!text) return; }
           send(q.prompt(p.name, text));
