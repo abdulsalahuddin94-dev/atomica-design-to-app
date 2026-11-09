@@ -757,3 +757,72 @@ select option:disabled{color:var(--ink-3)}
 .tools .more{border:1px dashed var(--rule-2);background:none;color:var(--ink-2);border-radius:4px;padding:2px 8px;font:500 12px var(--mono);cursor:pointer}
 .tools .more:hover{color:var(--ink);border-color:var(--cyan)}
 .tools .t[hidden]{display:none}
+
+/* ---------- UX pass (2026-11-03): previews, plain-word tooltips, checkpoint comments, phase times ---------- */
+abbr.term{text-decoration:underline dotted color-mix(in srgb,var(--ink-3) 70%,transparent);text-underline-offset:3px;cursor:help}
+.stage-now .usual{margin-left:auto;font-weight:400;color:var(--ink-3)}
+.pv{margin-top:8px;display:grid;gap:8px;padding:10px;border:1px solid var(--rule);border-radius:4px;background:var(--sheet-2);font-size:12.5px;font-weight:400}
+.pv-text{color:var(--ink-2)}
+.pv-colors{display:flex;flex-wrap:wrap;gap:6px}
+.pv-sw{display:inline-flex;align-items:center;gap:5px;font:400 11px var(--mono);color:var(--ink-2)}
+.pv-sw i{width:18px;height:18px;border-radius:3px;border:1px solid var(--rule-2)}
+.pv-font{display:grid;gap:2px;font-size:15px;color:var(--ink)}
+.pv-icons{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pv-icons img{width:22px;height:22px}
+:root[data-theme="dark"] .pv-icons img{filter:invert(1)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pv-icons img{filter:invert(1)}}
+.pv-modes{display:flex;gap:6px}
+.pv-mode{font-size:12px;padding:6px 12px;border-radius:4px;border:1px solid var(--rule-2)}
+.pv-mode.light{background:#FFFFFF;color:#121418}
+.pv-mode.dark{background:#121418;color:#ECEEF2}
+.shots.gallery .shot figcaption{position:absolute;top:6px;left:6px;font:600 11px var(--mono);background:var(--key, #121418);color:var(--on-key, #fff);border-radius:3px;padding:1px 6px}
+.comment-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.comment-row .hint,.annot .hint{font-size:12.5px;color:var(--ink-3)}
+.side-actions .notify{font-size:13px}
+dialog.annot{border:0;border-radius:var(--r);color:var(--ink);background:var(--sheet);padding:20px;width:min(1200px,calc(100vw - 32px));max-height:calc(100dvh - 32px);display:none;gap:14px;grid-template-rows:auto minmax(0,1fr) auto}
+dialog.annot[open]{display:grid}
+dialog.annot::backdrop{background:rgba(8,9,12,.6)}
+.annot-head{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline}
+.annot-head h3{margin:0;font-size:17px}
+.annot-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;min-height:0}
+@media (max-width:760px){.annot-body{grid-template-columns:1fr}}
+.annot-shots{overflow:auto;display:grid;gap:14px;align-content:start}
+.annot-shot{margin:0;display:grid;gap:6px}
+.annot-shot figcaption{font:600 12px var(--mono);color:var(--ink-3)}
+.pin-area{position:relative;width:100%}
+.pin-area img{display:block;width:100%;height:auto;cursor:crosshair;border:1px solid var(--rule);border-radius:4px}
+.marks{position:absolute;inset:0;pointer-events:none}
+.pin{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#E0007A;color:#fff;font:700 11px var(--mono);border:2px solid #fff;flex:none}
+.marks .pin{position:absolute;transform:translate(-50%,-50%)}
+.annot-side{overflow:auto}
+.pin-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pin-list li{display:flex;gap:8px;align-items:center}
+.pin-list input{flex:1;min-width:0}
+dialog.annot .foot{display:flex;gap:8px;justify-content:flex-end}
+.pv-font small{font-size:11.5px;color:var(--ink-3)}
+
+/* Intake wizard (Abdul, 2026-11-04): progress bar on top, only the current step in the log, input fields for typed questions */
+.wizard-bar{padding:14px 28px 12px;border-bottom:1px solid var(--rule);background:var(--sheet);display:grid;gap:9px}
+.wiz-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.wiz-label{font:600 12.5px var(--mono);letter-spacing:.04em;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.wiz-track{height:6px;border-radius:999px;background:var(--sheet-2);box-shadow:inset 0 0 0 1px var(--rule);overflow:hidden}
+.wiz-track i{display:block;height:100%;width:0;background:var(--cyan);border-radius:inherit;transition:width .35s ease}
+.log.wizard>:not(.wiz-keep){display:none}
+.log.wizard{justify-content:flex-start;padding-top:32px}
+.log.wizard>.wiz-keep.msg.claude{max-width:780px}
+.wiz-input .wiz-field{display:grid;gap:6px}
+.wiz-input .wiz-field>span{font-size:13px;font-weight:600;color:var(--ink-2)}
+.wiz-input input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--rule-2);border-radius:var(--r);background:var(--sheet);color:var(--ink);font:inherit}
+.wiz-input input:focus{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan)}
+.wiz-rows{display:grid;gap:8px}
+.wiz-pair{display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:8px;align-items:center}
+.wiz-input .foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.wiz-input .foot>.ghost:first-child:has(.ic){margin-right:auto}
+@media (max-width:640px){.wiz-pair{grid-template-columns:1fr auto}.wiz-pair input:first-child{grid-column:1/-1}.wizard-bar{padding:12px 16px}}
+.wiz-input .wiz-field>.ghost{justify-self:start}
+.wiz-stages{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px;font-size:11px}
+.wiz-stages li{padding:2px 8px;border-radius:3px;background:var(--sheet-2);color:var(--ink-3);border:1px solid var(--rule)}
+.wiz-stages li.done{color:var(--ink-2)}
+.wiz-stages li.done::before{content:"✓ ";color:var(--good,var(--cyan-ink))}
+.wiz-stages li.on{background:var(--key);color:var(--on-key);border-color:var(--key);font-weight:600}
+.wiz-stages li.off{text-decoration:line-through;opacity:.5}

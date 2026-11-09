@@ -17,7 +17,7 @@ const el = (tag, attrs = {}, ...kids) => {
 const api = async (url, body, method) => {
   const r = await fetch(url, body === undefined && !method ? {} : { method: method || "POST", headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || r.statusText);
+  if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { code: data.code, status: r.status });
   return data;
 };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -139,12 +139,14 @@ let projects = [];
 window.addEventListener("hashchange", route);
 function route() {
   const m = location.hash.match(/^#\/chat\/([\w-]+)/);
-  const page = m ? "chat" : /^#\/settings/.test(location.hash) ? "settings" : /^#\/projects/.test(location.hash) ? "projects" : /^#\/styles/.test(location.hash) ? "styles" : "home";
-  for (const a of document.querySelectorAll("[data-nav]")) a.classList.toggle("on", a.dataset.nav === page);
+  const pm = location.hash.match(/^#\/project\/([^/]+)(?:\/([\w-]+))?/); // project pages (project-pages.js)
+  const page = m ? "chat" : pm ? "project" : /^#\/settings/.test(location.hash) ? "settings" : /^#\/projects/.test(location.hash) ? "projects" : /^#\/styles/.test(location.hash) ? "styles" : "home";
+  for (const a of document.querySelectorAll("[data-nav]")) a.classList.toggle("on", a.dataset.nav === (page === "project" ? "projects" : page));
+  if (page !== "project") hideProjectNav();
   // Inside a project the conversation gets the whole width: the app sidebar steps aside.
   document.body.classList.toggle("focus", page === "chat");
   if (current?.es) { current.es.close(); current.cleanup?.(); current = null; }
-  if (page === "chat") renderChat(m[1]); else if (page === "settings") renderSettings(); else if (page === "projects") renderProjects(); else if (page === "styles") renderStyles(); else renderHome();
+  if (page === "chat") renderChat(m[1]); else if (page === "project") renderProjectPage(decodeURIComponent(pm[1]), pm[2] || "pipeline"); else if (page === "settings") renderSettings(); else if (page === "projects") renderProjects(); else if (page === "styles") renderStyles(); else renderHome();
 }
 
 // ---------- Settings ----------
@@ -301,7 +303,7 @@ async function openToolPicker(sessionId, onDone) {
 
 // ---------- start a conversation ----------
 const PROMPTS = {
-  new: "Start the intake (Design_System_Intake_Skill). I want to start a new project.",
+  new: "Start the intake (Design_System_Intake_Skill). I want to start a new project with the full workflow (0.0q = Full workflow). Ask every choice with AskUserQuestion menus, as the intake says.",
   join: "Start the intake (Design_System_Intake_Skill). I want to join a team project.",
   project: (p) => `Start the intake (Design_System_Intake_Skill). Work on the existing project "${p}" (My Projects/${p}).`,
 };
@@ -505,6 +507,7 @@ function renderProjects() {
   app.replaceChildren($("#tpl-projects").content.cloneNode(true));
   $("#refresh").addEventListener("click", () => { loadProjects(); checkUpdates(true); });
   $("#add-project").addEventListener("click", () => openProjectForm());
+  $("#open-github").addEventListener("click", () => openFromGitHub());
   for (const b of app.querySelectorAll("[data-view]")) {
     b.setAttribute("aria-pressed", String(b.dataset.view === projectView));
     b.addEventListener("click", () => {
@@ -517,7 +520,8 @@ function renderProjects() {
   loadProjects();
 }
 
-const openProject = (p) => start({ prompt: PROMPTS.project(p.name), project: p.name, title: p.title }).catch(showError);
+// A project opens on its Pipeline page; "Continue in chat" there starts the conversation (project-pages.js).
+const openProject = (p) => { location.hash = `#/project/${encodeURIComponent(p.name)}/pipeline`; };
 
 function rowActions(p) {
   return el("span", { class: "row-actions" },
@@ -548,7 +552,7 @@ function openProjectForm(p) {
         return loadProjects();
       }
       const r = await api("/api/projects", { title: input.value.trim() });
-      if ($("#proj-start").checked) return start({ prompt: `Start the intake (Design_System_Intake_Skill). I want to start a new project named "${r.title}". Its folder already exists: My Projects/${r.name} (made from the template by the dashboard), so skip creating it and continue from the next question.`, project: r.name, title: r.title });
+      if ($("#proj-start").checked) return start({ prompt: `Start the intake (Design_System_Intake_Skill). I want to start a new project named "${r.title}". Its folder already exists: My Projects/${r.name} (made from the template by the dashboard), so skip creating it and continue from the next question (0.0q = Full workflow). Ask every choice with AskUserQuestion menus, as the intake says.`, project: r.name, title: r.title });
       toast(`Added ${r.title}.`);
       loadProjects();
     } catch (e) { showError(e); }
@@ -658,7 +662,7 @@ const icon = (name, cls = "ic") => {
 };
 
 function linkChip(l) {
-  const mark = l.kind === "figma" ? figmaIcon() : l.kind === "github" ? brandIcon("b-github") : l.kind === "storybook" ? brandIcon("b-storybook") : icon("i-external");
+  const mark = l.kind === "figma" ? figmaIcon() : l.kind === "github" ? brandIcon("b-github") : l.kind === "storybook" ? brandIcon("b-storybook") : l.kind === "prototype" ? icon("i-phone") : icon("i-external");
   return el("a", { class: "chip", href: l.url, target: "_blank", rel: "noopener", title: l.url }, mark, l.kind === "figma" ? `Figma · ${l.label}` : l.label);
 }
 
@@ -675,10 +679,19 @@ function stageIndex(p) {
   if (best >= 0 && /(done|approved|finished|complete)/.test(text) && best < STAGES.length - 1) best += 1;
   return best;
 }
+// How long each phase usually takes, from the Time: lines of earlier projects (tools/phase_times.cjs).
+let phaseTimesCache = null;
+const getPhaseTimes = () => (phaseTimesCache ||= api("/api/phase-times").then((r) => r.phases || {}).catch(() => ({})));
+const fmtMinutes = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`);
 function track(p) {
   const at = stageIndex(p);
+  const usual = el("span", { class: "usual" });
+  if (at >= 0) getPhaseTimes().then((t) => {
+    const x = t[STAGES[at]];
+    if (x) { usual.textContent = `usually about ${fmtMinutes(x.median)}`; usual.title = `Median active time of ${x.sessions} earlier ${STAGES[at]} session${x.sessions > 1 ? "s" : ""}`; }
+  });
   return el("div", { class: "stage" },
-    el("div", { class: "stage-now" + (at >= 0 ? "" : " unknown") }, at >= 0 ? STAGES[at] : "Stage not recorded", at >= 0 ? el("span", {}, `${at + 1} of ${STAGES.length}`) : null),
+    el("div", { class: "stage-now" + (at >= 0 ? "" : " unknown") }, at >= 0 ? STAGES[at] : "Stage not recorded", at >= 0 ? el("span", {}, `${at + 1} of ${STAGES.length}`) : null, usual),
     el("ol", { class: "track", "aria-hidden": "true" },
       STAGES.map((s, i) => el("li", { class: i < at ? "done" : i === at ? "now" : "" }, el("span", {}, s)))));
 }
@@ -687,17 +700,22 @@ const jobNo = (i) => `No.${String(i + 1).padStart(3, "0")}`;
 // Figma connection for the Home counter: FigCli Yolo answers on port 9222 when Figma Desktop runs patched.
 let integrationsCache = null;
 const getIntegrations = () => (integrationsCache ||= api("/api/integrations").catch(() => null));
+// The Figma tile: the default tool and its state, then the three tools with a dot each (click one for details and setup).
 async function loadFigmaTally() {
-  const d = await getIntegrations();
-  const lines = d?.figma?.lines || [];
-  const yolo = lines.find((l) => /yolo/i.test(l)) || "";
-  const bridge = lines.find((l) => /desktop bridge/i.test(l)) || "";
-  const state = /port 9222 open/i.test(yolo) ? ["Connected", "ok"] : /installed/i.test(bridge) || /installed/i.test(yolo) ? ["Not running", "off"] : ["Not set up", "off"];
   const dd = $("#t-figma");
   if (!dd) return;
-  dd.textContent = state[0];
-  dd.parentElement.classList.toggle("off", state[1] === "off");
-  dd.parentElement.title = lines.join("\n");
+  let st;
+  try { st = await getFigmaTools(); } catch { dd.textContent = "–"; return; }
+  const draw = () => {
+    if (!dd.isConnected) return;
+    const def = figmaToolsCache.tools[figmaToolsCache.default];
+    dd.classList.add("ftile");
+    dd.replaceChildren(el("span", { class: "fnow" }, `${figmaToolName(figmaToolsCache.default)} · ${def.checking ? "checking" : def.connected ? "Connected" : "Needs setup"}`), figmaToolRows(figmaToolsCache));
+    dd.parentElement.classList.toggle("off", !def.connected);
+    dd.parentElement.title = def.reason;
+  };
+  draw();
+  refreshFigmaToolsLater(draw);
 }
 
 // "Worth a look": facts from the projects, usage and workflow, each with one action. Nothing is invented.
@@ -879,8 +897,80 @@ const QUICK = [
   { label: "Project status", hint: "Checkpoints, to-dos, what is next", prompt: (p) => `Show the status of the project "${p}": checkpoints, user to-dos and the next step. Do not change anything.` },
 ];
 
-function renderChat(id) {
-  const app = $("#app");
+// Plain-word tooltips on design-system terms (Design_System_Intake_Skill/glossary.json, Intake section 0, Plain words).
+let glossary = {}, glossaryRe = null, glossaryLoad = null;
+const loadGlossary = () => (glossaryLoad ||= api("/api/glossary").then((g) => {
+  const terms = g.terms || {};
+  glossary = Object.fromEntries(Object.entries(terms).map(([k, v]) => [k.toLowerCase(), v]));
+  const keys = Object.keys(terms).sort((a, b) => b.length - a.length).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  glossaryRe = keys.length ? new RegExp(`\\b(${keys.join("|")})\\b`, "gi") : null;
+}).catch(() => {}));
+// Each term is explained once per text, at its first appearance.
+function withTerms(text) {
+  text = String(text ?? "");
+  if (!glossaryRe || !text) return [text];
+  const out = [], seen = new Set();
+  let last = 0;
+  for (const m of text.matchAll(glossaryRe)) {
+    const key = m[1].toLowerCase();
+    if (seen.has(key) || !glossary[key]) continue;
+    seen.add(key);
+    out.push(text.slice(last, m.index), el("abbr", { class: "term", title: glossary[key] }, m[1]));
+    last = m.index + m[1].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+
+// Option previews (Intake section 0, Previews), one item per line: "Colors: #hex ...", "Font: Latin | Arabic",
+// "Icons: prefix:name ..." (Iconify ids), "Modes: Light, Dark". Other lines stay text; no known line -> plain text box.
+const fontsLoaded = new Set();
+function loadFont(name) {
+  if (!name || fontsLoaded.has(name)) return;
+  fontsLoaded.add(name);
+  document.head.append(el("link", { rel: "stylesheet", href: `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name).replace(/%20/g, "+")}:wght@400;600&display=swap` }));
+}
+function previewNode(text) {
+  const rows = [];
+  let rich = false;
+  for (const line of String(text).split(/\r?\n/)) {
+    const m = line.match(/^\s*(colou?rs?|fonts?|icons?|modes?)\s*:\s*(.+)$/i);
+    if (!m) { if (line.trim()) rows.push(el("div", { class: "pv-text", dir: "auto" }, line.trim())); continue; }
+    rich = true;
+    const kind = m[1].toLowerCase()[0], v = m[2].trim();
+    if (kind === "c") {
+      rows.push(el("div", { class: "pv-colors" }, (v.match(/#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b/gi) || []).map((h) =>
+        el("span", { class: "pv-sw" }, el("i", { style: `background:${h}` }), h.toUpperCase()))));
+    } else if (kind === "f") {
+      const [lat, ar] = v.split("|").map((x) => x.trim().replace(/[^\w .-]/g, ""));
+      loadFont(lat); loadFont(ar);
+      rows.push(el("div", { class: "pv-font" },
+        lat ? el("span", { style: `font-family:"${lat}",system-ui,sans-serif` }, el("b", {}, "Aa"), ` ${lat}: The quick brown fox`) : null,
+        ar ? el("span", {}, el("span", { dir: "rtl", lang: "ar", style: `font-family:"${ar}",system-ui,sans-serif` }, "أبجد هوز حطي كلمن"), el("small", {}, ` ${ar}`)) : null));
+    } else if (kind === "i") {
+      rows.push(el("div", { class: "pv-icons" }, v.split(/[\s,]+/).filter(Boolean).map((id) => /^[a-z0-9-]+:[a-z0-9-]+$/i.test(id)
+        ? el("img", { src: `https://api.iconify.design/${id.replace(":", "/")}.svg`, alt: id, title: id, width: 22, height: 22, loading: "lazy" })
+        : el("span", { class: "pv-text" }, id))));
+    } else {
+      rows.push(el("div", { class: "pv-modes" }, v.split(/[,/]+/).map((x) => x.trim()).filter(Boolean).map((x) =>
+        el("span", { class: "pv-mode " + (/dark/i.test(x) ? "dark" : "light") }, x))));
+    }
+  }
+  return rich ? el("div", { class: "pv" }, rows) : el("pre", {}, text);
+}
+
+// Desktop notification when Claude needs you or finished while this tab is in the background (opt-in).
+const canNotify = () => "Notification" in window && Notification.permission === "granted";
+function notifyButton() {
+  if (!("Notification" in window) || Notification.permission !== "default") return null;
+  const b = el("button", { type: "button", class: "ghost notify", onclick: () => Notification.requestPermission().then(() => b.remove()) },
+    "Notify me when Claude needs me");
+  return b;
+}
+
+// mount: where the conversation goes (the whole page, or the Design workspace's chat panel in project-pages.js).
+function renderChat(id, mount) {
+  const app = mount || $("#app");
   app.replaceChildren($("#tpl-chat").content.cloneNode(true));
   const log = $("#log");
   const input = $("#input");
@@ -904,7 +994,169 @@ function renderChat(id) {
   const add = (node) => {
     const stick = nearBottom(); removeTyping(); log.append(node);
     if (stick) scroll(); else if (node.classList?.contains("msg") || node.classList?.contains("qcard") || node.classList?.contains("pcard")) unread++;
-    updateTyping(); syncJump(); return node;
+    updateTyping(); syncJump(); wizMark(); return node;
+  };
+
+  // ---------- Intake wizard (Abdul, 2026-11-04) ----------
+  // The intake (and every later phase) puts a progress line in each question: the AskUserQuestion header or the first
+  // line of a typed question ("Intake 2/11"). Once one is seen, the conversation shows as a wizard: a progress bar on
+  // top and only the current step (Claude's question with its menu or input fields); "Show conversation" shows all.
+  const STEP_RE = /^[\s*_#>]*((?:Intake|Checkpoint|Foundation|Components|Screens|Storybook|Quick task)\b[^\n*_]*?)\s*(?:(\d+)\s*\/\s*(\d+))?[\s*_]*$/i;
+  const parseStep = (line) => {
+    // the last progress line in the text: a reply can start with notes and end with the question
+    const m = String(line || "").split("\n").map((l) => l.match(STEP_RE)).filter(Boolean).pop();
+    if (!m) return null;
+    const name = m[1].replace(/\s+\d+\s*$/, "").trim();
+    return { name, n: m[2] ? Number(m[2]) : null, total: m[3] ? Number(m[3]) : null, raw: m[1].trim(), text: m[2] ? `${name} ${m[2]}/${m[3]}` : m[1].trim() };
+  };
+  const wiz = { on: false, step: null, open: null };
+  // the whole journey (proposal v3): the stage of the current question is marked, earlier ones done
+  const WIZ_STAGES = [["intake", "Intake"], ["foundation", "Foundation"], ["components", "Components"], ["screens", "Screens"],
+    ["proto", "Live prototype"], ["backend", "Backend"], ["handoff", "Handoff"], ["finish", "Finish"]];
+  const stageOf = (name) => {
+    const n = String(name || "").toLowerCase();
+    if (/^checkpoint\s*1/.test(n) || n.startsWith("foundation")) return "foundation";
+    if (/^checkpoint\s*2/.test(n) || n.startsWith("components")) return "components";
+    if (/^checkpoint\s*3/.test(n) || n.startsWith("screens")) return "screens";
+    if (n.startsWith("storybook")) return "finish";
+    return "intake";
+  };
+  const wizKey = `wizard:${id}`;
+  let wizFocus = true;
+  try { wizFocus = localStorage.getItem(wizKey) !== "all"; } catch {}
+  const wizBar = el("div", { class: "wizard-bar", hidden: true },
+    el("div", { class: "wiz-row" },
+      el("span", { class: "wiz-label" }),
+      el("button", { type: "button", class: "textbtn wiz-toggle", onclick: () => {
+        wizFocus = !wizFocus;
+        try { localStorage.setItem(wizKey, wizFocus ? "focus" : "all"); } catch {}
+        wizMark(); scroll();
+      } })),
+    el("div", { class: "wiz-track", role: "progressbar", "aria-valuemin": "0" }, el("i")),
+    el("ol", { class: "wiz-stages", "aria-label": "Stages" }, WIZ_STAGES.map(([key, label]) => el("li", { "data-stage": key }, label))));
+  log.before(wizBar);
+  // The project's plan (intake 2.1b, status.json > scope) greys out the stages it does not go to.
+  const wizScope = (scope) => {
+    const off = scope === "ds" ? ["screens", "proto", "backend", "handoff"] : scope === "ds-screens" ? ["proto", "backend", "handoff"] : [];
+    for (const li of wizBar.querySelectorAll(".wiz-stages li")) li.classList.toggle("off", off.includes(li.dataset.stage));
+  };
+  function wizStep(step) {
+    if (!step) return;
+    wiz.on = true;
+    if (step.n || !wiz.step) wiz.step = step;
+    wizBar.hidden = false;
+    const s = wiz.step;
+    wizBar.querySelector(".wiz-label").textContent = s.n ? `${s.name} · step ${s.n} of ${s.total}` : s.text;
+    const pct = s.n && s.total ? Math.min(100, Math.round((s.n / s.total) * 100)) : 0;
+    const track = wizBar.querySelector(".wiz-track");
+    track.setAttribute("aria-valuemax", String(s.total || 0)); track.setAttribute("aria-valuenow", String(s.n || 0));
+    track.firstChild.style.width = `${pct}%`;
+    const cur = WIZ_STAGES.findIndex(([k]) => k === stageOf(s.raw || s.name));
+    wizBar.querySelectorAll(".wiz-stages li").forEach((li, i) => { li.classList.toggle("on", i === cur); li.classList.toggle("done", i < cur); });
+    if (!wiz.scopeAsked && state.session?.project) {
+      wiz.scopeAsked = true;
+      api(`/api/project/${encodeURIComponent(state.session.project)}/overview`).then((r) => wizScope(r.overview?.scope)).catch(() => {});
+    }
+    wizMark();
+  }
+  // Which nodes stay visible in the wizard view: the open step card, the Claude message just before it, and anything
+  // that needs the user now (a permission card, an error after their last message, the typing dots).
+  function wizMark() {
+    if (!wiz.on) return;
+    const focus = wizFocus;
+    log.classList.toggle("wizard", focus);
+    wizBar.querySelector(".wiz-toggle").textContent = focus ? "Show conversation" : "Wizard view";
+    if (!focus) return;
+    const kids = [...log.children];
+    for (const k of kids) k.classList.remove("wiz-keep");
+    const isOpenCard = (k) => (k.classList.contains("qcard") && !k.classList.contains("done")) || (k.classList.contains("wiz-input") && !k.classList.contains("done"));
+    let lastUser = -1;
+    kids.forEach((k, i) => { if (k.classList.contains("user")) lastUser = i; });
+    let anchor = -1;
+    kids.forEach((k, i) => { if (isOpenCard(k)) anchor = i; });
+    if (anchor < 0) kids.forEach((k, i) => { if (k.classList.contains("msg") && k.classList.contains("claude")) anchor = i; });
+    if (anchor < 0) { kids.forEach((k) => k.classList.add("wiz-keep")); return; }
+    kids[anchor].classList.add("wiz-keep");
+    // the question text: the Claude messages between the last answer and the card
+    for (let i = anchor - 1; i > lastUser && i >= 0; i--) if (kids[i].classList.contains("msg") || kids[i].classList.contains("shots")) kids[i].classList.add("wiz-keep");
+    kids.forEach((k, i) => {
+      if (isOpenCard(k) || k.classList.contains("typing")) k.classList.add("wiz-keep");
+      if (i > lastUser && (k.classList.contains("err") || k.classList.contains("reconnecting"))) k.classList.add("wiz-keep");
+      if (i > lastUser && i > anchor && k.classList.contains("msg")) k.classList.add("wiz-keep");
+    });
+  }
+  // A typed question (name, links, a path): input fields instead of the plain message box.
+  function inputCard(text) {
+    const step = parseStep(text);
+    const card = el("div", { class: "qcard sheet wiz-input" });
+    const done = (answer) => {
+      if (!answer) return;
+      card.classList.add("done");
+      for (const b of card.querySelectorAll("button, input, textarea")) b.disabled = true;
+      card.querySelector(".foot")?.remove();
+      card.append(el("div", { class: "picked" }, "Your answer: ", el("b", { dir: "auto" }, answer)));
+      send(answer);
+    };
+    const back = step?.n > 1 ? el("button", { type: "button", class: "ghost", onclick: () => done("Back") }, icon("i-left"), "Back") : null;
+    if (/where is your existing work\?/i.test(text)) {
+      // Existing work (intake 16.1, Vibe code): any of a repo + branch, a local folder or ZIP, a live link, a Figma Make link.
+      const f = (label, placeholder, type = "text") => {
+        const input = el("input", { type, placeholder, dir: "ltr" });
+        return { input, row: el("label", { class: "wiz-field" }, el("span", {}, label), input) };
+      };
+      const repo = f("GitHub repo (Lovable, v0, Bolt…)", "https://github.com/owner/repo", "url");
+      const branch = f("Branch", "main");
+      const local = f("Or a local folder or ZIP", "Path to your app folder or ZIP");
+      const live = f("Live preview link (optional)", "https://my-app.lovable.app", "url");
+      const make = f("Figma Make link", "https://www.figma.com/make/…", "url");
+      const next = () => {
+        const v = (x) => x.input.value.trim();
+        if (!v(repo) && !v(local) && !v(make) && !v(live)) { repo.input.focus(); toast("Add at least one: a repo, a folder, a Figma Make link or a live link."); return; }
+        done([v(repo) && `Repo: ${v(repo)}${v(branch) ? ` (branch ${v(branch)})` : ""}`, v(local) && `Local folder or ZIP: ${v(local)}`,
+          v(make) && `Figma Make: ${v(make)}`, v(live) && `Live link: ${v(live)}`].filter(Boolean).join("\n"));
+      };
+      card.append(repo.row, branch.row, local.row, make.row, live.row,
+        el("div", { class: "foot" }, back, el("button", { type: "button", class: "primary", onclick: next }, "Next")));
+      setTimeout(() => repo.input.focus(), 0);
+    } else if (/figma\s+link/i.test(text)) {
+      // Figma links (intake 0.2): one design system file, any number of named Design files, or none yet.
+      const ds = el("input", { type: "url", placeholder: "https://www.figma.com/design/…", dir: "ltr" });
+      const rows = el("div", { class: "wiz-rows" });
+      const addRow = () => {
+        const name = el("input", { type: "text", placeholder: "Name, e.g. Web App", dir: "auto" });
+        const url = el("input", { type: "url", placeholder: "https://www.figma.com/design/…", dir: "ltr" });
+        const row = el("div", { class: "wiz-pair" }, name, url,
+          el("button", { type: "button", class: "textbtn", "aria-label": "Remove", onclick: () => row.remove() }, icon("i-x")));
+        rows.append(row); name.focus();
+      };
+      const next = () => {
+        const files = [...rows.querySelectorAll(".wiz-pair")].map((r) => { const [n, u] = r.querySelectorAll("input"); return { n: n.value.trim(), u: u.value.trim() }; }).filter((f) => f.u);
+        if (!ds.value.trim() && !files.length) { ds.focus(); toast("Add a link, or press None yet."); return; }
+        done([ds.value.trim() ? `Design System file: ${ds.value.trim()}` : "Design System file: none yet",
+          ...files.map((f, i) => `Design file "${f.n || `Design file ${i + 1}`}": ${f.u}`)].join("\n"));
+      };
+      card.append(
+        el("label", { class: "wiz-field" }, el("span", {}, "Design System file (one)"), ds),
+        el("div", { class: "wiz-field" }, el("span", {}, "Design files with screens"), rows,
+          el("button", { type: "button", class: "ghost sm", onclick: addRow }, "Add a Design file")),
+        el("div", { class: "foot" }, back,
+          el("button", { type: "button", class: "ghost", onclick: () => done("none") }, "None yet"),
+          el("button", { type: "button", class: "primary", onclick: next }, "Next")));
+      setTimeout(() => ds.focus(), 0);
+    } else {
+      const field = el("input", { type: "text", placeholder: "Type your answer", dir: "auto" });
+      const next = () => done(field.value.trim());
+      field.addEventListener("keydown", (k) => { if (k.key === "Enter" && !k.isComposing) { k.preventDefault(); next(); } });
+      card.append(el("label", { class: "wiz-field" }, el("span", {}, /name/i.test(text) ? "Name" : "Your answer"), field),
+        el("div", { class: "foot" }, back, el("button", { type: "button", class: "primary", onclick: next }, "Next")));
+      setTimeout(() => field.focus(), 0);
+    }
+    return card;
+  }
+  const closeInputCard = () => {
+    const c = wiz.open;
+    wiz.open = null;
+    if (c && !c.classList.contains("done")) { c.classList.add("done"); c.querySelector(".foot")?.remove(); for (const b of c.querySelectorAll("button, input")) b.disabled = true; }
   };
   // A line with the date and time when more than 30 minutes passed between messages (continued conversations).
   let lastAt = 0;
@@ -948,7 +1200,14 @@ function renderChat(id) {
   // Browser tab title: says when Claude needs an answer or finished while you were in another tab.
   const openedAt = Date.now();
   const baseTitle = "Atomica";
-  const attention = (text, at) => { if (document.hidden && (at || 0) >= openedAt) document.title = `${text} · ${baseTitle}`; };
+  const attention = (text, at) => {
+    if (!document.hidden || (at || 0) < openedAt) return;
+    document.title = `${text} · ${baseTitle}`;
+    if (canNotify()) {
+      const n = new Notification(`Atomica: ${text}`, { body: state.session?.title || "", tag: `atomica-${id}` });
+      n.onclick = () => { window.focus(); n.close(); };
+    }
+  };
   const clearAttention = () => { if (!document.hidden) document.title = baseTitle; };
   document.addEventListener("visibilitychange", clearAttention);
   current.cleanup = () => { document.removeEventListener("visibilitychange", clearAttention); document.title = baseTitle; };
@@ -986,6 +1245,8 @@ function renderChat(id) {
     }
     const actions = $("#side-actions");
     actions.replaceChildren();
+    const nb = notifyButton();
+    if (nb) actions.append(nb);
     if (p) {
       actions.append(el("p", { class: "sub" }, "Quick actions"));
       for (const q of QUICK) {
@@ -1000,16 +1261,45 @@ function renderChat(id) {
   if (!projects.length) api("/api/projects").then((r) => { projects = r.projects; if (state.session) fillSide(state.session); }).catch(() => {});
 
   // Events from Claude
+  loadGlossary();
   const es = new EventSource(`/api/sessions/${id}/events`);
   current.es = es;
+  // The dashboard restarted (or the stream dropped): reconnect by itself. A conversation that is no longer running
+  // is continued from its Claude session (same history); the page that hosts it is told the new id ("chat-reconnect").
+  let reconnecting = null;
   es.onerror = () => {
-    if (es.readyState === EventSource.CLOSED) add(el("div", { class: "sys err" }, "Lost the connection to the dashboard. Is its window still open?"));
+    if (es.readyState !== EventSource.CLOSED || reconnecting) return;
+    reconnecting = add(el("div", { class: "sys reconnecting" }, "Reconnecting…"));
+    reconnect();
   };
+  async function reconnect() {
+    const sess = state.session || {};
+    for (let i = 0; i < 60; i++) {
+      if (current?.es !== es) return; // the user left this conversation
+      try {
+        const { live, past } = await api("/api/sessions");
+        let to = live.find((x) => x.id === id) || (sess.claudeSessionId && live.find((x) => x.claudeSessionId === sess.claudeSessionId));
+        if (!to && sess.claudeSessionId && past.some((x) => x.claudeSessionId === sess.claudeSessionId))
+          to = await api("/api/sessions", { resume: sess.claudeSessionId, project: sess.project, title: sess.title });
+        if (to) {
+          current.cleanup?.(); current = null;
+          const ev = new CustomEvent("chat-reconnect", { cancelable: true, detail: { from: id, to: to.id, claudeSessionId: to.claudeSessionId || sess.claudeSessionId || null } });
+          if (!window.dispatchEvent(ev)) return; // a host page (the Design workspace) mounts it again itself
+          if (to.id !== id) location.hash = `#/chat/${to.id}`; else renderChat(id, mount);
+          return;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    reconnecting.textContent = "Lost the connection to the dashboard. Is its window still open?";
+    reconnecting.classList.add("err");
+  }
   es.onmessage = (ev) => {
     const e = JSON.parse(ev.data);
     switch (e.type) {
       case "hello":
         log.replaceChildren();
+        Object.assign(wiz, { on: false, step: null, open: null, typed: null }); wizBar.hidden = true; log.classList.remove("wizard");
         Object.assign(state, { busy: false, pending: new Set(), lastShots: [], shotRows: [], toolRow: null, live: null, firstPrompt: null, session: e.session, limit: null, limitCard: null, agent: e.session.agent || "claude" });
         fillSide(e.session);
         setAgent(state.agent);
@@ -1017,6 +1307,7 @@ function renderChat(id) {
         break;
       case "user":
         if (!state.firstPrompt) state.firstPrompt = e.text;
+        closeInputCard(); wiz.typed = null;
         state.toolRow = null; state.live = null; state.lastShots = []; state.shotRows = [];
         stamp(e.at);
         add(el("div", { class: "msg user", dir: "auto", title: timeTitle(e.at) }, e.text, (e.images || []).map((src) => el("img", { src, alt: "Attached image" }))));
@@ -1032,9 +1323,10 @@ function renderChat(id) {
         state.toolRow = null;
         if (state.live && e.streamed) { state.live.innerHTML = markdown(e.text); state.live.title = timeTitle(e.at) || ""; finishReply(state.live, e.text); state.live = null; }
         else { state.live = null; stamp(e.at); add(finishReply(el("div", { class: "msg claude" + (e.agent === "gemini" ? " gemini" : ""), dir: "auto", title: timeTitle(e.at), html: markdown(e.text) }), e.text)); }
+        { const st = parseStep(e.text); if (st?.n) { wizStep(st); wiz.typed = e.text; } else wiz.typed = null; }
         break;
       case "tool":
-        state.live = null;
+        state.live = null; wiz.typed = null;
         if (!state.toolRow) state.toolRow = add(el("div", { class: "tools" }));
         state.toolRow.append(el("span", { class: "t" + (e.sub ? " sub" : ""), title: `${e.name} ${e.detail}` }, el("b", {}, e.name), e.detail ? ` ${e.detail}` : ""));
         foldTools(state.toolRow);
@@ -1051,6 +1343,8 @@ function renderChat(id) {
       }
       case "question": {
         state.pending.add(e.requestId);
+        wiz.typed = null;
+        wizStep(parseStep(e.questions?.[0]?.header || ""));
         attention("Waiting for your answer", e.at);
         const shots = state.lastShots.slice(-4);
         // The screenshots move into the approval card instead of showing twice.
@@ -1069,6 +1363,7 @@ function renderChat(id) {
         state.pending.delete(e.requestId);
         const card = log.querySelector(`[data-request="${e.requestId}"]`);
         if (card) closeCard(card, e);
+        wizMark();
         state.lastShots = []; state.shotRows = [];
         break;
       }
@@ -1077,8 +1372,17 @@ function renderChat(id) {
         break;
       case "result":
         state.toolRow = null; state.live = null;
+        // a new conversation gets its Claude session id with the first reply: keep it, so a reconnect can continue it
+        if (state.session && !state.session.claudeSessionId) api("/api/sessions").then((r) => { const me = r.live.find((x) => x.id === id); if (me?.claudeSessionId) state.session.claudeSessionId = me.claudeSessionId; }).catch(() => {});
         attention(e.ok ? "Done" : "Stopped", e.at);
+        // a typed intake question ended the turn: show its input fields
+        if (e.ok && wiz.typed && !state.pending.size) { closeInputCard(); wiz.open = add(inputCard(wiz.typed)); wiz.typed = null; }
         if (!e.ok && e.error) add(el("div", { class: "sys err" }, e.error));
+        break;
+      case "version":
+        // a code project saved this request as a version (the Design page's History panel lists it)
+        add(el("div", { class: e.error ? "sys err" : "sys" }, e.error ? e.error : `Saved as a version (${String(e.sha || "").slice(0, 7)}). History shows every version.`));
+        window.dispatchEvent(new CustomEvent("project-version", { detail: e }));
         break;
       case "error":
         add(el("div", { class: "sys err" }, e.message));
@@ -1136,18 +1440,31 @@ function renderChat(id) {
 
   function questionCard(e, shots) {
     const card = el("div", { class: "qcard sheet" + (shots.length ? " proof" : ""), "data-request": e.requestId });
-    if (shots.length) {
-      const wrap = el("div", { class: "shots" + (shots.length === 2 ? " compare" : "") }, shots.map(shotNode));
-      card.append(wrap);
-    }
     const answers = {};
+    if (shots.length) {
+      // Checkpoint gallery: numbered screenshots, and comments pinned on them (Intake section 8, Comments on screenshots).
+      const wrap = el("div", { class: "shots gallery" + (shots.length === 2 ? " compare" : "") }, shots.map((src, i) => {
+        const f = shotNode(src);
+        f.append(el("figcaption", {}, String(i + 1)));
+        return f;
+      }));
+      card.append(wrap);
+      if (e.questions.length === 1) card.append(el("div", { class: "comment-row" },
+        el("button", { type: "button", class: "ghost", onclick: () => annotate(shots, (text, images) => {
+          answers[e.questions[0].question] = text;
+          api(`/api/sessions/${id}/answer`, { requestId: e.requestId, answers })
+            .then(() => images.length && api(`/api/sessions/${id}/message`, { text: "The screenshots with my numbered comments, for the change request above.", images }))
+            .catch(showError);
+        }) }, "Comment on the screenshots"),
+        el("span", { class: "hint" }, "Click a spot on a screenshot and write what to change.")));
+    }
     const multi = e.questions.some((q) => q.multiSelect) || e.questions.length > 1;
     const submit = () => {
       for (const q of e.questions) if (!answers[q.question]) return;
       api(`/api/sessions/${id}/answer`, { requestId: e.requestId, answers }).catch(showError);
     };
     for (const q of e.questions) {
-      const box = el("div", { class: "q" }, el("h4", { dir: "auto" }, q.question));
+      const box = el("div", { class: "q" }, el("h4", { dir: "auto" }, withTerms(q.question)));
       const list = el("div", { class: "opts-list" });
       const picked = new Set();
       for (const o of q.options || []) {
@@ -1167,8 +1484,8 @@ function renderChat(id) {
               if (!multi) submit();
             }
           },
-        }, el("span", { class: "l" }, o.label), o.description ? el("span", { class: "d" }, o.description) : null,
-          o.preview ? el("pre", {}, o.preview) : null);
+        }, el("span", { class: "l" }, withTerms(o.label)), o.description ? el("span", { class: "d" }, withTerms(o.description)) : null,
+          o.preview ? previewNode(o.preview) : null);
         list.append(btn);
       }
       const other = el("input", { type: "text", placeholder: "Other: type your own answer", dir: "auto" });
@@ -1419,6 +1736,69 @@ function openSignIn(onDone) {
   dlg.showModal();
 }
 
+// Pin numbered comments on checkpoint screenshots. done(text, images): the change request and the pinned images.
+function annotate(shots, done) {
+  const pins = []; // { shot, x, y, input }
+  const list = el("ol", { class: "pin-list" });
+  const sendBtn = el("button", { type: "button", class: "primary", disabled: true }, "Send as change request");
+  const refresh = () => { sendBtn.disabled = !pins.some((p) => p.input.value.trim()); };
+  const stage = el("div", { class: "annot-shots" }, shots.map((src, si) => {
+    const marks = el("div", { class: "marks" });
+    const img = el("img", { src, alt: `Screenshot ${si + 1}` });
+    const box = el("figure", { class: "annot-shot" }, el("figcaption", {}, `Screenshot ${si + 1}`), el("div", { class: "pin-area" }, img, marks));
+    img.addEventListener("click", (ev) => {
+      const r = img.getBoundingClientRect();
+      const pin = { shot: si, x: (ev.clientX - r.left) / r.width, y: (ev.clientY - r.top) / r.height };
+      const n = pins.push(pin);
+      marks.append(el("span", { class: "pin", style: `left:${pin.x * 100}%;top:${pin.y * 100}%` }, String(n)));
+      pin.input = el("input", { type: "text", dir: "auto", placeholder: `What should change at ${n}?`, oninput: refresh });
+      list.append(el("li", {}, el("span", { class: "pin" }, String(n)), pin.input));
+      pin.input.focus();
+    });
+    return box;
+  }));
+  const dlg = el("dialog", { class: "annot" },
+    el("div", { class: "annot-head" }, el("h3", {}, "Comment on the screenshots"), el("span", { class: "hint" }, "Click where something should change, then write it.")),
+    el("div", { class: "annot-body" }, stage, el("div", { class: "annot-side" }, list)),
+    el("div", { class: "foot" }, el("button", { type: "button", class: "ghost", onclick: () => dlg.close() }, "Cancel"), sendBtn));
+  sendBtn.addEventListener("click", async () => {
+    const used = pins.filter((p) => p.input.value.trim());
+    const where = (p) => `${p.y < 0.34 ? "top" : p.y < 0.67 ? "middle" : "bottom"} ${p.x < 0.34 ? "left" : p.x < 0.67 ? "center" : "right"}`;
+    const text = ["Request changes. Comments on the checkpoint screenshots:",
+      ...pins.map((p, i) => p.input.value.trim() ? `${i + 1}. Screenshot ${p.shot + 1}, ${where(p)} (${Math.round(p.x * 100)}% across, ${Math.round(p.y * 100)}% down): ${p.input.value.trim()}` : null).filter(Boolean)].join("\n");
+    const images = [];
+    for (const si of [...new Set(used.map((p) => p.shot))]) images.push(await pinnedImage(shots[si], pins.map((p, i) => ({ ...p, n: i + 1 })).filter((p) => p.shot === si && p.input.value.trim())));
+    dlg.close();
+    done(text, images.filter(Boolean));
+  });
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+}
+// The screenshot with its numbered pins drawn in, as a PNG data URL.
+function pinnedImage(src, pins) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const g = c.getContext("2d");
+      g.drawImage(img, 0, 0);
+      const r = Math.max(14, Math.round(c.width / 60));
+      for (const p of pins) {
+        const x = p.x * c.width, y = p.y * c.height;
+        g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = "#E0007A"; g.fill();
+        g.lineWidth = Math.max(2, r / 6); g.strokeStyle = "#FFFFFF"; g.stroke();
+        g.fillStyle = "#FFFFFF"; g.font = `700 ${Math.round(r * 1.1)}px system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(String(p.n), x, y + 1);
+      }
+      try { resolve(c.toDataURL("image/png")); } catch { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 function lightbox(src) {
   const box = el("div", { class: "lightbox", role: "dialog", "aria-label": "Screenshot", onclick: () => box.remove() }, el("img", { src, alt: "Screenshot, full size" }));
   const onKey = (k) => { if (k.key === "Escape") { box.remove(); removeEventListener("keydown", onKey); } };
@@ -1431,6 +1811,21 @@ $("#perm").addEventListener("click", openPerm);
 refreshPerm();
 // The sidebar's Add to the workflow buttons live outside the page templates, so they are bound once.
 for (const b of document.querySelectorAll(".sidenav [data-add]")) b.addEventListener("click", () => openAdd(b.dataset.add));
+initRail();
 route();
 checkUpdates(true);
 refreshAccount();
+
+// ---------- Open a shared project from GitHub (tools/project_repo.cjs) ----------
+// The repo is cloned into My Projects as it is; the project's GitHub page then lists what this computer still needs.
+async function openFromGitHub() {
+  const link = await askText({ title: "Open a project from GitHub", help: "Paste the project's GitHub link. It is copied into My Projects with everything in it; nothing on GitHub changes.", placeholder: "https://github.com/owner/project", okLabel: "Open" });
+  if (!link) return;
+  toast("Copying the project from GitHub…");
+  try {
+    const r = await api("/api/projects/open-github", { url: link });
+    const todo = (r.setup || []).filter((s) => !s.ok && !s.optional).length;
+    toast(todo ? `Opened ${r.name}. ${todo} thing(s) to set up on this computer: see its GitHub page.` : `Opened ${r.name}.`);
+    location.hash = `#/project/${encodeURIComponent(r.name)}/${todo ? "github" : "pipeline"}`;
+  } catch (e) { showError(e); }
+}

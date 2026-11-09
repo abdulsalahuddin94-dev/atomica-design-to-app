@@ -14,13 +14,36 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { TOOLS, toolStatus, loginCommand, antigravityPath, usageStore, handoffCommand, LIMIT_RE, which } from "./tools.mjs";
 import { startAcp } from "./acp.mjs";
+import { handleProjectApi, projectLinks, autoVersion } from "./project-api.mjs";
+import { createRequire as requireFrom } from "node:module";
+// However the dashboard was started (shortcut, script, another tool), its child processes (Claude, gh, git, publish)
+// get the user's full environment: home folders and the Git / GitHub CLI folders on PATH (tools/publish_checks.cjs).
+Object.assign(process.env, requireFrom(import.meta.url)("../tools/publish_checks.cjs").userEnv());
+delete process.env.GIT_TERMINAL_PROMPT; delete process.env.GCM_INTERACTIVE; // only the publish steps run without prompts
+import { handleFigmaTools } from "./figma-tools.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
-const PROJECTS = path.join(ROOT, "My Projects");
+// DASHBOARD_PROJECTS points a dashboard run from a git worktree at the real projects folder (My Projects is git-ignored).
+// Where the projects live: DASHBOARD_PROJECTS, else this checkout's My Projects when it has any, else (a git worktree of
+// the workflow, e.g. a trial branch) the main checkout's My Projects, which is git-ignored and so never in a worktree.
+function findProjects() {
+  if (process.env.DASHBOARD_PROJECTS) return path.resolve(process.env.DASHBOARD_PROJECTS);
+  const own = path.join(ROOT, "My Projects");
+  const hasProjects = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }).some((e) => e.isDirectory() && !e.name.startsWith("_") && !e.name.startsWith(".")); } catch { return false; } };
+  if (hasProjects(own)) return own;
+  const r = spawnSync("git", ["-C", ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8", windowsHide: true });
+  const main = r.status === 0 ? path.join(path.dirname(r.stdout.trim()), "My Projects") : null;
+  return main && hasProjects(main) ? main : own;
+}
+const PROJECTS = findProjects();
+// Projects outside this checkout: every conversation may read and write there (project data only), and is told so.
+const PROJECTS_OUTSIDE = path.relative(ROOT, PROJECTS).startsWith("..");
+const PROJECTS_NOTE = PROJECTS_OUTSIDE ? `Project folders ("My Projects/<Project>") are in ${PROJECTS}, outside this working folder; read and write project data there. Do not change any other file outside this working folder (the main checkout's workflow files and its master branch stay as they are). The workflow's tools and skills are the ones in this working folder.` : "";
 const PUBLIC = path.join(HERE, "public");
 const STATE = path.join(ROOT, ".claude", ".state");
 const HISTORY = path.join(STATE, "dashboard-sessions.json");
@@ -28,6 +51,9 @@ const LOGS = path.join(STATE, "dashboard-logs"); // one file per Claude session:
 const SETTINGS = path.join(STATE, "dashboard-settings.json");
 const PORT = Number(process.env.DASHBOARD_PORT || 4777);
 const HOST = "127.0.0.1";
+// Shared with the skills: plain-word tooltips (Intake section 0, Plain words) and phase times (tools/phase_times.cjs).
+const GLOSSARY = path.join(ROOT, "Design_System_Intake_Skill", "glossary.json");
+const { phaseTimes } = createRequire(import.meta.url)(path.join(ROOT, "tools", "phase_times.cjs"));
 
 // ---------- small helpers ----------
 const readJson = (file, fallback = null) => {
@@ -53,7 +79,7 @@ const git = (args, timeout = 20000) => {
 // ---------- projects ----------
 // Folders listed in private/dashboard-hidden.txt (one name per line, git-ignored) never appear.
 function hiddenProjects() {
-  return new Set(readText(path.join(ROOT, "private", "dashboard-hidden.txt"))
+  return new Set(readText(path.join(path.dirname(PROJECTS), "private", "dashboard-hidden.txt")) // next to My Projects (the main checkout when run from a worktree)
     .split(/\r?\n/).map((s) => s.trim().toLowerCase()).filter((s) => s && !s.startsWith("#")));
 }
 
@@ -73,17 +99,8 @@ function unsynced(changelog) {
   return (changelog.match(/^\s*-\s*Storybook synced:\s*no\b/gim) || []).length;
 }
 
-function links(status, brief) {
-  const out = [];
-  const ds = status?.figma?.design_system;
-  if (ds?.url) out.push({ kind: "figma", label: ds.name || "Design System", url: ds.url });
-  for (const f of status?.figma?.design_files || []) if (f?.url) out.push({ kind: "figma", label: f.name || "Design file", url: f.url });
-  const team = status?.team?.repo;
-  if (team) out.push({ kind: "github", label: "Team repo", url: team });
-  const pages = (JSON.stringify(status || {}) + "\n" + brief).match(/https:\/\/[\w.-]+\.github\.io\/[^\s"')>\]]*/g) || [];
-  for (const url of new Set(pages)) out.push({ kind: "storybook", label: "Storybook", url });
-  return out;
-}
+// Project links: project-api.mjs > projectLinks (from the project's own config).
+const links = projectLinks;
 
 function listProjects() {
   const hidden = hiddenProjects();
@@ -112,7 +129,7 @@ function listProjects() {
       unsynced: unsynced(changelog),
       team: String(status.collaboration || "").toLowerCase() === "team",
       storybook: !!status.has_storybook,
-      links: links(status, brief),
+      links: links(status, brief, folder),
       updated: mtime,
     };
   }).sort((a, b) => b.updated - a.updated);
@@ -459,6 +476,7 @@ function emit(s, event) {
   s.log.push(event);
   if (s.log.length > 4000) s.log.splice(0, s.log.length - 4000);
   if (!SKIP_SAVE.has(event.type)) scheduleSave(s);
+  if (event.type === "user" && event.text) s.lastAsk = event.text;
   if (event.type === "user" && !s.preview) s.preview = previewOf(event.text);
   const line = `data: ${JSON.stringify(event)}\n\n`;
   for (const res of s.clients) res.write(line);
@@ -595,7 +613,9 @@ function cancelLogin() {
   return { ok: true };
 }
 
-function startSession({ prompt, project, title, images, resume }) {
+// context: instructions Claude gets with the first message but the conversation does not show (the Design page's
+// workspace rules); the bubble shows only what the user typed.
+function startSession({ prompt, context, project, title, images, resume }) {
   const id = crypto.randomUUID();
   const s = {
     id, project: project || null, title: title || (prompt || "").slice(0, 60) || "Conversation",
@@ -608,7 +628,9 @@ function startSession({ prompt, project, title, images, resume }) {
   sessions.set(id, s);
   runQuery(s, resume);
   if (prompt || (images && images.length)) {
-    s.inbox.push(userMessage(prompt, images));
+    s.inbox.push(userMessage(context ? `${String(context).slice(0, 8000)}
+
+${prompt || ""}` : prompt, images));
     emit(s, { type: "user", text: prompt || "", images: images || [] });
   } else {
     s.busy = false;
@@ -645,6 +667,7 @@ function runQuery(s, resume) {
     prompt: s.inbox,
     options: {
       cwd: ROOT,
+      ...(PROJECTS_OUTSIDE ? { additionalDirectories: [PROJECTS], systemPrompt: { type: "preset", preset: "claude_code", append: PROJECTS_NOTE } } : {}),
       settingSources: ["user", "project", "local"],
       includePartialMessages: true,
       abortController: s.abort,
@@ -821,27 +844,38 @@ async function pump(s) {
       if (error && LIMIT_RE.test(error)) hitLimit(s, error);
       if (AUTH_RE.test(error)) emit(s, { type: "auth", message: AUTH_MESSAGE, detail: error });
       emit(s, { type: "result", ok: m.subtype === "success", turns: m.num_turns, ms: m.duration_ms, error: AUTH_RE.test(error) ? "" : error });
+      // Code projects: what this request changed in the app becomes one version (History panel, tools/versions.cjs)
+      if (s.project && m.subtype === "success") {
+        const dir = projectDir(s.project);
+        const v = dir ? autoVersion(dir, s.lastAsk || s.title) : null;
+        if (v?.created) emit(s, { type: "version", sha: v.sha, message: s.lastAsk || s.title });
+        else if (v && v.ok === false) emit(s, { type: "version", error: v.error });
+      }
       emit(s, { type: "busy", busy: false });
       saveHistory(s);
     }
   }
 }
 
-function sendMessage(s, text, images) {
+// context: instructions Claude gets with this message but the conversation does not show (only text is shown).
+function sendMessage(s, text, images, context) {
+  const full = context ? `${String(context).slice(0, 8000)}
+
+${text}` : text;
   if (s.agent === "gemini") {
     emit(s, { type: "user", text, images: images || [] });
-    geminiSend(s, text, images);
+    geminiSend(s, full, images);
     return true;
   }
   if (s.ended && !s.claudeSessionId) return false;
   emit(s, { type: "user", text, images: images || [] });
   // While Claude is over its limit, messages wait here and go out together when it is back.
   if (s.limit) {
-    s.held.push({ text, images: images || [] });
+    s.held.push({ text: full, images: images || [] });
     emit(s, { type: "held", count: s.held.length, resetsAt: s.limit.at });
     return true;
   }
-  return deliver(s, text, images);
+  return deliver(s, full, images);
 }
 
 function setAutoResume(s, on) {
@@ -1085,7 +1119,11 @@ function integrations(force) {
   const figma = pyCmd ? sh(pyCmd, ["tools/figma_tools_check.py"], 20000).out : "";
   const value = {
     github: { cli: !/not recognized|ENOENT/i.test(ghs.out) && ghs.out !== "", signedIn: !!account, account, repo: origin.replace(/\.git$/, "") },
-    figma: { lines: figma.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !/token/i.test(l)).slice(0, 6) },
+    figma: {
+      lines: figma.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !/token/i.test(l)).slice(0, 6),
+      // is the Figma app itself running (as opposed to reachable through FigCli's port)?
+      running: process.platform === "win32" ? /figma\.exe/i.test(sh("tasklist", ["/FI", "IMAGENAME eq Figma.exe", "/NH"], 5000).out) : sh("pgrep", ["-x", "Figma"], 5000).ok,
+    },
     machine: {
       node: process.version,
       python: py ? py.out.replace(/^Python\s*/, "") : "",
@@ -1218,6 +1256,15 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
   try {
     if (req.method === "GET" && p === "/api/projects") return send(res, 200, { projects: listProjects() });
+    if (p.startsWith("/api/figma-tools") && await handleFigmaTools(req, res, url, { send, readBody, runInTerminal, root: ROOT, projectDir })) return;
+    if (p.startsWith("/api/project/") && await handleProjectApi(req, res, url, { send, projectDir, readBody, root: ROOT, integrations })) return;
+    // Open a shared project: clone its repo into My Projects, then list what this computer still needs (project_repo.cjs)
+    if (req.method === "POST" && p === "/api/projects/open-github") {
+      const b = await readBody(req);
+      const pr = requireFrom(import.meta.url)("../tools/project_repo.cjs");
+      const r = pr.openFromGitHub(String(b.url || ""), { base: PROJECTS });
+      return send(res, r.ok ? 200 : 400, r.ok ? { name: r.name, repo: r.repo, setup: pr.setupCheck(r.dir) } : { error: r.error, name: r.name || null });
+    }
     if (req.method === "POST" && p === "/api/projects") { const b = await readBody(req); const r = createProject(b.title); return send(res, r.ok ? 200 : 400, r); }
     const pr = p.match(/^\/api\/projects\/([^/]+)(\/inputs|\/restore)?$/);
     if (pr) {
@@ -1233,6 +1280,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && p === "/api/workflow") return send(res, 200, workflowInfo(url.searchParams.get("fetch") === "1"));
     if (req.method === "GET" && p === "/api/styles") return send(res, 200, readStyles());
+    if (req.method === "GET" && p === "/api/glossary") return send(res, 200, readJson(GLOSSARY, { terms: {} }));
+    if (req.method === "GET" && p === "/api/phase-times") return send(res, 200, { phases: phaseTimes(ROOT) });
     const sm = req.method === "GET" && p.match(/^\/api\/styles\/([a-z0-9-]+)$/);
     if (sm) { const s = readStyle(sm[1]); return send(res, s ? 200 : 404, s || { error: "Style not found" }); }
     if (req.method === "POST" && p === "/api/workflow/update") return send(res, 200, updateWorkflow());
@@ -1292,7 +1341,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const body = req.method === "POST" ? await readBody(req) : {};
-      if (action === "/message") return send(res, sendMessage(s, body.text || "", body.images) ? 200 : 409, { ok: !s.ended });
+      if (action === "/message") return send(res, sendMessage(s, body.text || "", body.images, body.context) ? 200 : 409, { ok: !s.ended });
       if (action === "/answer") return send(res, answer(s, body.requestId, body) ? 200 : 404, { ok: true });
       if (action === "/stop") {
         if (s.agent === "gemini" && s.gemini?.sessionId) { s.gemini.client.notify("session/cancel", { sessionId: s.gemini.sessionId }); cancelGeminiAsks(s); }
@@ -1325,7 +1374,7 @@ server.on("error", (err) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`\n  Design systems Ai Ready - dashboard\n  http://localhost:${PORT}\n\n  Keep this window open while you use it. Close it to stop.\n`);
+  console.log(`\n  Atomica Studio - dashboard\n  http://localhost:${PORT}\n\n  Keep this window open while you use it. Close it to stop.\n`);
   if (process.argv.includes("--open")) {
     const url = `http://localhost:${PORT}`;
     const opener = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];

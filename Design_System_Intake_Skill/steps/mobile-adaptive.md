@@ -19,6 +19,7 @@ Chain: layer -> (Component Specific ->) OS -> Language -> value. The binding nev
 Code syntax on every variable: SwiftUI for iOS, Jetpack Compose / M3 for Android.
 
 ## 2. Components
+- **No Hover on mobile (Abdul, 2026-10-28):** phones and tablets have no pointer, so mobile components (Android, iOS, cross-platform, Mobile Adaptive) have no Hover / Hovered state or variant; tap feedback is the Pressed state (Android: state layer / ripple; iOS: highlighted, pressed opacity), plus Focused where the platform has keyboard focus. Hover is for Web (and desktop pointers) only. Check: `node tools/check_no_hover.cjs "My Projects/<Project>"` (0 findings).
 - One component per thing. Light / Dark, platform and language come only from modes: never variants, never hard-coded colors.
 - Token first. A variant only when the anatomy really changes. Then build a private set `_<Component> Platform` (Platform=iOS|Android) and a published wrapper whose nested `Platform` variant property is bound to `Platform/Name` (this binding works).
 - Platform-only parts (iOS chevron and inset separator, Android floating label, M3 selected check) are layers with visibility bound to `Platform/Is iOS` / `Is Android`.

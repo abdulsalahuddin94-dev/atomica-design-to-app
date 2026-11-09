@@ -110,6 +110,9 @@ function measureInPage(sel) {
     out.lineHeight = ts.lineHeight === 'normal' ? null : px(ts.lineHeight);
   }
   if (out.stroke) out.strokeWeight = bw;
+  // A Figma inside stroke drawn as an inset ring (box-shadow: inset 0 0 0 Npx color) leaves the padding alone, like Figma.
+  const ring = !out.stroke && /^(rgba?\([^)]*\)|#\w+)\s+0px\s+0px\s+0px\s+([\d.]+)px\s+inset/.exec(s.boxShadow || '');
+  if (ring && parseFloat(ring[2]) > 0) { out.stroke = hex(ring[1]); out.strokeWeight = parseFloat(ring[2]); }
   return out;
 }
 

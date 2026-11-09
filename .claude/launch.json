@@ -13,6 +13,14 @@
         "--no-open"
       ],
       "port": 6006
+    },
+    {
+      "name": "atomica-dashboard",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "dashboard/server.mjs"
+      ],
+      "port": 4777
     }
   ]
 }

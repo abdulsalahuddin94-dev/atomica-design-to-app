@@ -38,7 +38,7 @@ Cover
 ➜ Shape                  (corner scale + expressive shape set)
 ➜ Spacing                (4dp scale)
 ➜ Elevation              (levels 0-5, tone + shadow)
-➜ State Layers           (hover/focus/pressed/dragged recipe)
+➜ State Layers           (focus/pressed/dragged recipe; no hover on mobile)
 ➜ Icons                  (Material Symbols)
 ➜ App Icon               (adaptive icon layers, themed icon, Play Store 512; section 5b)
 ➜ Layout                 (window size classes, grids, example layouts)
@@ -109,7 +109,7 @@ Before each component: state tier, list dependencies, build lower tiers first, p
 - Drop deprecated roles (background, surface-variant) or mark them deprecated.
 
 ### State layers
-- Opacity variables `state/hover 0.08`, `state/focus 0.10`, `state/pressed 0.10`, `state/dragged 0.16`, `state/disabled-container 0.12`, `state/disabled-content 0.38`.
+- Opacity variables `state/focus 0.10`, `state/pressed 0.10`, `state/dragged 0.16`, `state/disabled-container 0.12`, `state/disabled-content 0.38`.
 - State layer color = the **content (on-) role alias** (e.g. `State Layers/On Primary` -> Schemes/On Primary) with the opacity applied on the layer, not raw RGBA copies (reference: 180 raw RGBA values, several stale).
 
 ### Typography (md.sys.typescale) - 1 mode (add a Large-screen mode only if needed)
@@ -168,7 +168,8 @@ Flow (create, notice a drop, check, present, Storybook): Design_System_Intake_Sk
 
 ## 6. Component conventions (M3 kit)
 - Public names match M3 (`Button`, `Button - tonal`, `Icon button - outline`, `Navigation Rail`); private parts start with `.Building Blocks/` and live in the Building Blocks frame.
-- Properties: `State` = Enabled, Hovered, Focused, Pressed, (Dragged), Disabled · `Selected` · `Size` XSmall, Small, Medium, Large, XLarge · `Type`/`Style`/`Color`/`Configuration` · BOOLEAN `Show ...` and `Show focus indicator` · TEXT `Label text`, `Supporting text`, `Headline` · INSTANCE_SWAP `Icon`, `Icon (selected)` · SLOT `Content`.
+- **No Hover on mobile (Abdul, 2026-10-28):** phones and tablets have no pointer, so mobile components (Android, iOS, cross-platform, Mobile Adaptive) have no Hover / Hovered state or variant; tap feedback is the Pressed state (Android: state layer / ripple; iOS: highlighted, pressed opacity), plus Focused where the platform has keyboard focus. Hover is for Web (and desktop pointers) only. Check: `node tools/check_no_hover.cjs "My Projects/<Project>"` (0 findings).
+- Properties: `State` = Enabled, Pressed, Focused, (Dragged), Disabled (no Hovered) · `Selected` · `Size` XSmall, Small, Medium, Large, XLarge · `Type`/`Style`/`Color`/`Configuration` · BOOLEAN `Show ...` and `Show focus indicator` · TEXT `Label text`, `Supporting text`, `Headline` · INSTANCE_SWAP `Icon`, `Icon (selected)` · SLOT `Content`.
 - Anatomy: container > `State-layer` frame (state overlay) > content; ripple only in Pressed; focus indicator 3dp outline offset (Utilities).
 - 100% bound: fills, strokes, **padding/gap (spacing)**, **radius (Shape)**, text styles, effect styles; 0 remote variables/styles/components.
 - Touch target 48x48dp (visual 40dp controls inside 48 targets).
@@ -180,9 +181,9 @@ Flow (create, notice a drop, check, present, Storybook): Design_System_Intake_Sk
 ### Required inventory and states (Android)
 | Tier | Component | Variants / states |
 |---|---|---|
-| Atom | Button (filled, tonal, outlined, elevated, text) | XSmall-XLarge · Round/Square · icon optional · Enabled, Hovered, Focused, Pressed, Disabled |
+| Atom | Button (filled, tonal, outlined, elevated, text) | XSmall-XLarge · Round/Square · icon optional · Enabled, Pressed, Focused, Disabled |
 | Atom | Toggle button, Icon button (standard, filled, tonal, outlined; togglable) | + Selected · Width Narrow/Default/Wide |
-| Atom | FAB, Extended FAB | Default/Medium/Large · 6 colors · Enabled, Hovered, Focused, Pressed |
+| Atom | FAB, Extended FAB | Default/Medium/Large · 6 colors · Enabled, Pressed, Focused |
 | Atom | Checkbox (incl. error), Radio, Switch (icon optional) | Selected x 5 states |
 | Atom | Chips (assist, filter, input, suggestion), Badge (small/large), Avatar, Divider, Nav item, Tab item, Menu item, Progress / Loading indicator | M3 states |
 | Molecule | Text field (filled/outlined, leading/trailing icon, supporting text, error, prefix/suffix, counter), Exposed dropdown, Search bar, Button groups (standard/connected), Split button, List item, Snackbar, Tooltips, Slider | |

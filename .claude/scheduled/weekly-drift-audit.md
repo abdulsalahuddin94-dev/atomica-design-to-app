@@ -7,7 +7,7 @@ Once a week, Claude opens this folder, checks each design system's Figma file ag
 
 ## Prompt (paste this as the scheduled task's prompt)
 ```
-Work in the Root folder of "Design systems Ai Ready" (the folder with CLAUDE.md).
+Work in the Root folder of "Atomica Studio" (the folder with CLAUDE.md).
 Read memory/MEMORY.md first. Do not run the intake questions; this is a scheduled read-only job.
 1. Call figma_get_status. If the Desktop Bridge is not connected, write
    audits/<today>-drift-skipped.md saying so and stop.

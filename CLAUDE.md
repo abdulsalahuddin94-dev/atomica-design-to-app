@@ -1,6 +1,6 @@
-# Design systems Ai Ready
+# Atomica Studio: AI Design Systems to Full Apps
 
-This folder builds, audits and scales AI-ready design systems (Web, iOS, Android) in Figma.
+This folder builds, audits and scales AI-ready design systems (Web, iOS, Android) in Figma, then the full screens, a live prototype and the developer handoff built on them.
 
 ## Storybook (mention it, ask later)
 This repo has a live Storybook of the default Web reference design system (folder in `references.json > entries[].storybook`, today `Reference_Library/Library/Web/storybook/`). In your first reply of every session, mention it in one line as information only; the first question is always about the project (intake 0.0). Ask about Storybook at intake 0.7 (new project), when the user picks a project with unsynced changes or a `later` Storybook plan, or when the user asks (Abdul's feedback from the first Web trial). A SessionStart hook (`.claude/hooks/storybook_notice.cjs`) says whether it is installed and running and which projects have pending Storybook work.
@@ -47,7 +47,7 @@ Before any script that writes to Figma (FigCli `eval`, `figma_execute`, `use_fig
 
 Knowledge base (exact values, read these instead of re-deriving or re-reading Figma): each DS folder has `data/tokens.json`, `data/component-registry.json`, `data/rules.json`, `data/screen-templates.json` and `docs/decisions.md`. Tools in `tools/` (`build_tokens.py`, `recolor.py`, `lint_token_names.cjs`, `design_md.py`).
 
-Subagents (`.claude/agents/`): `ds-auditor` (read-only QA after every build step and for weekly drift), `token-extractor` (Figma variables or screens to `data/tokens.json`), `docs-writer` (skills, registry and usage docs from Figma). Hooks in `.claude/settings.json` check the machine's dependencies once (`tools/dependencies.json`), block absolute paths in files and remind you to run the audit after Figma changes. Weekly drift audit definition: `.claude/scheduled/weekly-drift-audit.md` (not enabled).
+Subagents (`.claude/agents/`): `ds-auditor` (read-only QA after every build step and for weekly drift), `token-extractor` (Figma variables or screens to `data/tokens.json`), `docs-writer` (skills, registry and usage docs from Figma). Hooks in `.claude/settings.json` check the machine's dependencies once (`tools/dependencies.json`), block absolute paths in files, stop Figma scripts that break the quality rules (raw values, default names, screen size floor, hover on mobile), gate "done" on code-to-Figma screens at 98% measured fidelity, remind you to Publish / Accept updates, block commits with secrets, ask before risky deletes and remind you to run the audit after Figma changes (`memory/decisions.md` > Automatic checks). Weekly drift audit definition: `.claude/scheduled/weekly-drift-audit.md` (not enabled).
 
 Reference library: studied design systems (any company, Web / iOS / Android / cross-platform), one entry per company and platform in `references.json` (folder, Figma link, Storybook, platform default); each folder has Foundation_Skill + Component_Skills + data. Never hardcode a company name in skills, intake or docs; read the entry. How to add one: `/study-reference-ds` (`References.md` > "Adding a design system", scaffold with `tools/add_reference.py`).
 Style library: `Style_Library/` (index `styles.json`) holds looks only (colors, type, radius, mood), offered at Greenfield intake 0.3e (`steps/style-library.md`); the structure always comes from the reference library. Brand-inspired styles: "inspired by", never the company's identity (`Style_Library/README.md`).

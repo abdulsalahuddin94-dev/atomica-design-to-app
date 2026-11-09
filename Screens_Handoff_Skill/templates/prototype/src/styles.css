@@ -1,0 +1,116 @@
+/* Tailwind v4 without its preflight: the DS components are styled like in their Storybook, where no reset runs. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+/* Shell chrome follows the prototype's Light/Dark switch, not the OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+/* @theme from the project's tokens (colors, spacing, radius as Tailwind names), written by tools/build_prototype.py. */
+@import './generated/theme.css';
+/* Motion roles filled from the project's DS motion tokens (tools/build_prototype.py); defaults below are 0ms. */
+@import './generated/motion.css';
+
+/* The project's tokens and DS styles, straight from its Storybook (modes switch through data-semantic). */
+@import '@ds/tokens/tokens.css';
+@import '@ds/styles/text-styles.css';
+@import '@ds/styles/effects.css';
+@import '@ds/styles/components.css';
+
+html, body, #root { margin: 0; height: 100%; }
+/* The canvas behind the device: light gray in Light, mid gray in Dark (the device reads well on both). The side list and
+   the banner keep one fixed style; the Light/Dark switch changes the design, not the shell. */
+body { font-family: system-ui, sans-serif; background: #e9e9ec; color: #1b1b1f; }
+:root[data-shell='dark'] body { background: #444444; color: #e6e6ea; }
+/* A web screen scrolls inside its browser frame with a slim scrollbar (phone screens keep theirs hidden). */
+.fp-web .fp-screen { scrollbar-width: thin; scrollbar-color: rgba(128, 128, 140, 0.45) transparent; }
+.fp-web .fp-screen::-webkit-scrollbar { display: block; width: 8px; }
+.fp-web .fp-screen::-webkit-scrollbar-thumb { background: rgba(128, 128, 140, 0.45); border-radius: 8px; }
+/* Shell chrome only (no preflight runs): plain links and lists in the flow list. */
+aside a { color: inherit; text-decoration: none; }
+aside ul { list-style: none; margin: 0; padding: 0; }
+
+/* A Figma instance wrapper: the box Figma gives the instance; the DS component draws inside it. */
+.fp-inst { box-sizing: border-box; flex-shrink: 0; }
+.fp-inst[data-fill-w] > * { width: 100%; box-sizing: border-box; }
+.fp-inst[data-fill-h] > * { height: 100%; min-height: 0; box-sizing: border-box; }
+.fp-inst[data-pad] > * { padding: var(--fp-pad) !important; box-sizing: border-box; } /* instance padding override */
+.fp-frame { box-sizing: border-box; flex-shrink: 0; }
+.fp-screen { position: relative; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+.fp-screen::-webkit-scrollbar { display: none; }
+.fp-img { display: block; object-fit: cover; }
+
+/* Inspect mode: outline every DS instance and show its component name. */
+[data-inspect='on'] [data-component] { outline: 1px dashed rgba(255, 0, 128, 0.7); outline-offset: -1px; cursor: help; }
+
+/* Code panel and toolbar (shell chrome): no preflight runs, so their buttons drop the browser's own colours and borders
+   (in the base layer, so the Tailwind size and colour classes still win). */
+@layer base {
+  [data-code-panel] button, [data-toolbar] button, [data-toolbar] select, [data-comments-panel] button { color: inherit; font-family: inherit; border: 0; cursor: pointer; }
+  [data-comments-panel] input, [data-comments-panel] textarea { font-family: inherit; color: inherit; }
+  .fp-pins button { font-family: system-ui, sans-serif; cursor: pointer; }
+}
+
+/* AR: icons that point a direction mirror (back, lists, lyrics); media playback controls and their progress bar stay
+   left to right, as in Material's bidirectionality guidance (play, next and previous follow the tape, not the text). */
+.fp-screen[dir='rtl'] svg[data-icon='arrow_back'],
+.fp-screen[dir='rtl'] svg[data-icon='queue_music'],
+.fp-screen[dir='rtl'] svg[data-icon='lyrics'],
+.fp-screen[dir='rtl'] svg[data-icon='sort'] { transform: scaleX(-1); }
+.fp-screen[dir='rtl'] [data-component='Playback Controls'],
+.fp-screen[dir='rtl'] [data-component='Playback Progress'] { direction: ltr; }
+
+/* Comments: the element of a comment opened from the list or a link flashes; the selected pin pulses. */
+.fp-flash { outline: 3px solid #818cf8 !important; outline-offset: 2px; animation: fp-flash 0.6s ease-in-out 3; }
+@keyframes fp-flash { 50% { outline-color: transparent; } }
+.fp-pin-selected { animation: fp-pin 1s ease-in-out 3; }
+@keyframes fp-pin { 50% { transform: translate(-50%, -100%) scale(1.25); } }
+
+/* ---------- Motion (shell/motion.tsx) ----------
+   Roles default to 0ms / linear, so a project without DS motion tokens switches screens without animation;
+   src/generated/motion.css fills them from the DS tokens. Reduce motion (OS setting) turns everything off. */
+:where(:root) { /* zero specificity: generated/motion.css wins */
+  --fp-dur-press: 0ms; --fp-dur-exit: 0ms; --fp-dur-fade: 0ms; --fp-dur-screen: 0ms; --fp-dur-expand: 0ms;
+  --fp-ease-standard: linear; --fp-ease-in: linear; --fp-ease-out: linear; --fp-ease-enter: linear; --fp-ease-exit: linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root, :root * { --fp-dur-press: 0ms !important; --fp-dur-exit: 0ms !important; --fp-dur-fade: 0ms !important; --fp-dur-screen: 0ms !important; --fp-dur-expand: 0ms !important; }
+}
+.fp-m-stage { position: relative; isolation: isolate; --fp-dir: 1; } /* its z-indexes stay inside: overlays and pins stay on top */
+.fp-m-stage[data-dir='rtl'] { --fp-dir: -1; }
+.fp-m-enter { position: relative; z-index: 1; }
+.fp-m-leave { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; }
+.fp-m-leave.fp-m-fall { z-index: 2; }
+/* push / pop: shared axis X (the new screen from the end side going forward, from the start side going back) */
+.fp-m-enter.fp-m-push { animation: fp-axis-in var(--fp-dur-screen) var(--fp-ease-enter) both; --fp-from: calc(var(--fp-dir) * 30%); }
+.fp-m-enter.fp-m-pop { animation: fp-axis-in var(--fp-dur-screen) var(--fp-ease-enter) both; --fp-from: calc(var(--fp-dir) * -30%); }
+.fp-m-leave.fp-m-push { animation: fp-axis-out var(--fp-dur-screen) var(--fp-ease-exit) both; --fp-to: calc(var(--fp-dir) * -30%); }
+.fp-m-leave.fp-m-pop { animation: fp-axis-out var(--fp-dur-screen) var(--fp-ease-exit) both; --fp-to: calc(var(--fp-dir) * 30%); }
+@keyframes fp-axis-in { from { transform: translateX(var(--fp-from)); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fp-axis-out { from { transform: none; opacity: 1; } to { transform: translateX(var(--fp-to)); opacity: 0; } }
+/* fade / player: fade through (out first, then in with a slight scale) */
+.fp-m-enter.fp-m-fade, .fp-m-enter.fp-m-player { animation: fp-through-in var(--fp-dur-fade) var(--fp-ease-standard) both; }
+.fp-m-leave.fp-m-fade, .fp-m-leave.fp-m-player { animation: fp-through-out var(--fp-dur-fade) var(--fp-ease-standard) both; }
+@keyframes fp-through-in { 0%, 35% { opacity: 0; transform: scale(0.92); } 100% { opacity: 1; transform: none; } }
+@keyframes fp-through-out { 0% { opacity: 1; } 35%, 100% { opacity: 0; } }
+/* rise: the player opens from the Mini Player at the bottom; fall: it slides back down */
+.fp-m-enter.fp-m-rise { animation: fp-rise var(--fp-dur-expand) var(--fp-ease-enter) both; }
+.fp-m-leave.fp-m-rise { animation: fp-hold var(--fp-dur-expand) linear both; }
+.fp-m-leave.fp-m-fall { animation: fp-fall var(--fp-dur-screen) var(--fp-ease-exit) both; }
+.fp-m-enter.fp-m-fall { animation: fp-hold var(--fp-dur-screen) linear both; }
+@keyframes fp-rise { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fp-fall { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes fp-hold { from { opacity: 1; } to { opacity: 1; } }
+/* A tooltip on an entering screen (e.g. a confirmation) fades in after the screen settles. */
+.fp-m-enter [data-component='Tooltip'] { animation: fp-tip-in var(--fp-dur-fade) var(--fp-ease-in) var(--fp-dur-fade) both; }
+@keyframes fp-tip-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+/* Overlays: the backdrop fades and a sheet slides up; closing reverses it, faster. An overlay screen that draws its own
+   full-screen Scrim gets no second backdrop from the shell. */
+.fp-ov:has([data-figma-name='Scrim']), .fp-ov:not(:has(.fp-screen *)) { background: transparent; } /* own scrim, or still loading */
+.fp-ov { z-index: 1; }
+.fp-ov-in { animation: fp-fade-in var(--fp-dur-fade) var(--fp-ease-standard) both; }
+.fp-ov-out { animation: fp-fade-out var(--fp-dur-exit) var(--fp-ease-exit) both; }
+.fp-ov-in :is([data-component='Sheet'], [data-figma-name='Sheet']) { animation: fp-sheet-in var(--fp-dur-screen) var(--fp-ease-enter) both; }
+.fp-ov-out :is([data-component='Sheet'], [data-figma-name='Sheet']) { animation: fp-sheet-out var(--fp-dur-exit) var(--fp-ease-exit) both; }
+@keyframes fp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fp-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes fp-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fp-sheet-out { from { transform: none; } to { transform: translateY(100%); } }
