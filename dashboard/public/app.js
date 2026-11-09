@@ -1098,7 +1098,27 @@ function renderChat(id, mount) {
       send(answer);
     };
     const back = step?.n > 1 ? el("button", { type: "button", class: "ghost", onclick: () => done("Back") }, icon("i-left"), "Back") : null;
-    if (/figma\s+link/i.test(text)) {
+    if (/where is your existing work\?/i.test(text)) {
+      // Existing work (intake 16.1, Vibe code): any of a repo + branch, a local folder or ZIP, a live link, a Figma Make link.
+      const f = (label, placeholder, type = "text") => {
+        const input = el("input", { type, placeholder, dir: "ltr" });
+        return { input, row: el("label", { class: "wiz-field" }, el("span", {}, label), input) };
+      };
+      const repo = f("GitHub repo (Lovable, v0, Bolt…)", "https://github.com/owner/repo", "url");
+      const branch = f("Branch", "main");
+      const local = f("Or a local folder or ZIP", "Path to your app folder or ZIP");
+      const live = f("Live preview link (optional)", "https://my-app.lovable.app", "url");
+      const make = f("Figma Make link", "https://www.figma.com/make/…", "url");
+      const next = () => {
+        const v = (x) => x.input.value.trim();
+        if (!v(repo) && !v(local) && !v(make) && !v(live)) { repo.input.focus(); toast("Add at least one: a repo, a folder, a Figma Make link or a live link."); return; }
+        done([v(repo) && `Repo: ${v(repo)}${v(branch) ? ` (branch ${v(branch)})` : ""}`, v(local) && `Local folder or ZIP: ${v(local)}`,
+          v(make) && `Figma Make: ${v(make)}`, v(live) && `Live link: ${v(live)}`].filter(Boolean).join("\n"));
+      };
+      card.append(repo.row, branch.row, local.row, make.row, live.row,
+        el("div", { class: "foot" }, back, el("button", { type: "button", class: "primary", onclick: next }, "Next")));
+      setTimeout(() => repo.input.focus(), 0);
+    } else if (/figma\s+link/i.test(text)) {
       // Figma links (intake 0.2): one design system file, any number of named Design files, or none yet.
       const ds = el("input", { type: "url", placeholder: "https://www.figma.com/design/…", dir: "ltr" });
       const rows = el("div", { class: "wiz-rows" });

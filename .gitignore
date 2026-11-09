@@ -36,6 +36,9 @@ My Projects/*
 !My Projects/_Project_Template/
 !My Projects/README.md
 
+# The user's own design systems (studied from their Figma, local only; the repo is public). Layout: steps/vibe-code.md 16.3
+My References/
+
 # Storybook cache when a project Storybook is started from the Root (a project preview in .claude/launch.json)
 node_modules/
 
