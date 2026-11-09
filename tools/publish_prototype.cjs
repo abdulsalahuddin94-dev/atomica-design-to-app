@@ -126,9 +126,15 @@ fs.rmSync(tmp, { recursive: true, force: true });
 console.log(changed ? 'Pushed the build to gh-pages.' : 'gh-pages already has this build.');
 // What the dashboard shows as "Last publish": the live link, when, and the build that went up.
 const indexHtml = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+// Code projects: the version that went live, for the History panel's Published mark (tools/versions.cjs).
+let commit = null;
+try {
+  const versions = require('./versions.cjs');
+  if (versions.enabled(project)) { const s = versions.snapshot(project, 'Published'); if (s.ok) commit = versions.list(project, 1).versions[0]?.sha?.slice(0, 12) || null; }
+} catch (e) { /* no history: the panel marks the newest version before the publish time instead */ }
 fs.writeFileSync(path.join(app, 'data', 'publish.json'), JSON.stringify({
   url: liveUrl, repo, at: new Date().toISOString(),
-  build: (indexHtml.match(/assets\/index-([\w-]+)\.js/) || [])[1] || null, changed,
+  build: (indexHtml.match(/assets\/index-([\w-]+)\.js/) || [])[1] || null, changed, commit,
 }, null, 1) + '\n');
 
 // 5. Pages from gh-pages /. Already on for a repo published before, so a gh problem here only warns.
