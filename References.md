@@ -45,6 +45,10 @@ What users see afterwards: Greenfield 3.1 offers "Start from a reference templat
 
 Rules: platforms stay independent (one entry per platform, nothing shared or merged between entries); a cross-platform entry (one shared design for Flutter / React Native custom UI) is offered when intake 1.3 picks cross-platform; never edit the original file.
 
+## Code references and the study queue (Abdul, 2026-11-10)
+- `Reference_Library/code_references.json`: a catalog of public design systems with a GitHub repo (repo links, license, platforms, whether a public Figma file exists). Not studied and never offered in the intake menus. Used for exact token values, prop names, states, accessibility and AGENTS.md ideas in Code first and Scenario D. Only `license_ok: true` repos are read for values; a brand look is never copied.
+- `Reference_Library/study_queue.md`: the systems with a public Figma file, in study order (mobile first). Abdul opens one link every day or two; Claude studies it with `/study-reference-ds` and marks the row `studied`.
+
 ## Platform quality skills (optional)
 Not Figma kits: agent skills that guide decisions (component choice, states, accessibility, polish). Values they suggest still map to the project's tokens. How each is used: section 11 of the iOS and Android Main Skills.
 - iOS: heyimjames iOS Design Engineering Skills (MIT): https://github.com/heyimjames/ios-design-skills. Its Figma-relevant rules are already in `iOS_Design_System_Skill/references/ios-polish.md`; the plugin is optional.

@@ -1,0 +1,1202 @@
+{
+  "$comment": "Code references: design systems with a public GitHub repo, catalogued but NOT studied. Not structure references (those are in references.json and need a public Figma file). Used for exact token values, prop names, states, accessibility and AGENTS.md ideas, in Code first and Scenario D (Code to Design). license_ok: true = permissive (MIT, Apache-2.0, BSD, ISC, MPL-2.0, CC0, OFL), false = copyleft, custom or restricted, null = no license found. Read ideas and values from these repos; never copy code or a brand look. How it is used: References.md > Code references.",
+  "checked": "2026-11-10",
+  "source": "oohdls archive (October 2026 edition), each repo checked on GitHub",
+  "skipped": {
+    "repo_not_found": [
+      "Wix Style React",
+      "Seeds",
+      "Wise Design / Neptune",
+      "VA.gov Design System / VADS",
+      "Ripple",
+      "WPDS",
+      "Origami"
+    ],
+    "archived": [
+      "Audi UI",
+      "Polaris (React repo archived)",
+      "Lightning Design System / SLDS 2 (code repo archived; its Figma kit is in the study queue)"
+    ],
+    "no_public_code_or_figma": [
+      "Pajamas (hosted on GitLab)",
+      "Nord Design System",
+      "Morningstar Design System",
+      "VCC UI",
+      "Dubai Design System"
+    ]
+  },
+  "entries": [
+    {
+      "id": "material-design-3",
+      "name": "Material Design 3",
+      "owner": "Google",
+      "platforms": [
+        "web",
+        "android",
+        "flutter"
+      ],
+      "github": [
+        "https://github.com/material-components/material-web",
+        "https://github.com/material-components/material-components-android"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://m3.material.io",
+      "oohdls": "https://oohdls.com/systems/material-design-3-google",
+      "status": "limited",
+      "notes": "Already the base of the Android reference entry."
+    },
+    {
+      "id": "fluent-2",
+      "name": "Fluent 2",
+      "owner": "Microsoft",
+      "platforms": [
+        "web",
+        "ios",
+        "android",
+        "windows"
+      ],
+      "github": [
+        "https://github.com/microsoft/fluentui",
+        "https://github.com/microsoft/fluentui-apple",
+        "https://github.com/microsoft/fluentui-android"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://fluent2.microsoft.design",
+      "oohdls": "https://oohdls.com/systems/fluent-2-microsoft",
+      "status": "active",
+      "notes": "Public Figma kits for Web and iOS; no public Android Figma kit found."
+    },
+    {
+      "id": "carbon",
+      "name": "Carbon",
+      "owner": "IBM",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/carbon-design-system/carbon"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://carbondesignsystem.com",
+      "oohdls": "https://oohdls.com/systems/carbon-ibm",
+      "status": "active"
+    },
+    {
+      "id": "primer",
+      "name": "Primer",
+      "owner": "GitHub",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/primer/react",
+        "https://github.com/primer/primitives"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://primer.style",
+      "oohdls": "https://oohdls.com/systems/primer-github",
+      "status": "active"
+    },
+    {
+      "id": "spectrum-2",
+      "name": "Spectrum 2",
+      "owner": "Adobe",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/adobe/react-spectrum"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://spectrum.adobe.com",
+      "oohdls": "https://oohdls.com/systems/spectrum-spectrum-2-adobe",
+      "status": "active"
+    },
+    {
+      "id": "cloudscape",
+      "name": "Cloudscape",
+      "owner": "Amazon Web Services",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/cloudscape-design/components"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://cloudscape.design",
+      "oohdls": "https://oohdls.com/systems/cloudscape-amazon-web-services",
+      "status": "active"
+    },
+    {
+      "id": "ant-design",
+      "name": "Ant Design",
+      "owner": "Ant Group",
+      "platforms": [
+        "web",
+        "mobile-web"
+      ],
+      "github": [
+        "https://github.com/ant-design/ant-design",
+        "https://github.com/ant-design/ant-design-mobile"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://ant.design",
+      "oohdls": "https://oohdls.com/systems/ant-design-ant-group-alibaba",
+      "status": "active"
+    },
+    {
+      "id": "arco-design",
+      "name": "Arco Design",
+      "owner": "ByteDance",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/arco-design/arco-design"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://arco.design",
+      "oohdls": "https://oohdls.com/systems/arco-design-bytedance",
+      "status": "active"
+    },
+    {
+      "id": "tdesign",
+      "name": "TDesign",
+      "owner": "Tencent",
+      "platforms": [
+        "web",
+        "mobile-web",
+        "flutter"
+      ],
+      "github": [
+        "https://github.com/Tencent/tdesign"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://tdesign.tencent.com",
+      "oohdls": "https://oohdls.com/systems/tdesign-tencent",
+      "status": "active"
+    },
+    {
+      "id": "gravity-ui",
+      "name": "Gravity UI",
+      "owner": "Yandex",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/gravity-ui/uikit"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://gravity-ui.com",
+      "oohdls": "https://oohdls.com/systems/gravity-ui-yandex",
+      "status": "active"
+    },
+    {
+      "id": "vkui",
+      "name": "VKUI",
+      "owner": "VK",
+      "platforms": [
+        "web",
+        "mobile-web"
+      ],
+      "github": [
+        "https://github.com/VKCOM/VKUI"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://vkcom.github.io/VKUI",
+      "oohdls": "https://oohdls.com/systems/vkui-vk",
+      "status": "active"
+    },
+    {
+      "id": "nutui",
+      "name": "NutUI",
+      "owner": "JD.com",
+      "platforms": [
+        "mobile-web"
+      ],
+      "github": [
+        "https://github.com/jd-opensource/nutui"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://nutui.jd.com",
+      "oohdls": "https://oohdls.com/systems/nutui-jd-com",
+      "status": "active"
+    },
+    {
+      "id": "eui",
+      "name": "Elastic UI Framework / EUI",
+      "owner": "Elastic",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/elastic/eui"
+      ],
+      "license": "custom (SSPL-1.0 / Elastic-2.0 / Apache-2.0 parts)",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": "https://eui.elastic.co",
+      "oohdls": "https://oohdls.com/systems/elastic-ui-framework-eui-elastic",
+      "status": "active"
+    },
+    {
+      "id": "ui5-web-components",
+      "name": "SAP Fiori / UI5 Web Components",
+      "owner": "SAP",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/UI5/webcomponents"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://sap.github.io/ui5-webcomponents",
+      "oohdls": "https://oohdls.com/systems/sap-fiori-ui5-web-components-sap",
+      "status": "active"
+    },
+    {
+      "id": "paste",
+      "name": "Paste",
+      "owner": "Twilio",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/twilio-labs/paste"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://paste.twilio.design",
+      "oohdls": "https://oohdls.com/systems/paste-twilio",
+      "status": "active"
+    },
+    {
+      "id": "garden",
+      "name": "Garden",
+      "owner": "Zendesk",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/zendeskgarden/react-components"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://garden.zendesk.com",
+      "oohdls": "https://oohdls.com/systems/garden-zendesk",
+      "status": "active"
+    },
+    {
+      "id": "canvas-kit",
+      "name": "Canvas",
+      "owner": "Workday",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/Workday/canvas-kit"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://canvas.workday.com",
+      "oohdls": "https://oohdls.com/systems/canvas-workday",
+      "status": "active"
+    },
+    {
+      "id": "patternfly",
+      "name": "PatternFly",
+      "owner": "Red Hat",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/patternfly/patternfly-react"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://www.patternfly.org",
+      "oohdls": "https://oohdls.com/systems/patternfly-red-hat",
+      "status": "active"
+    },
+    {
+      "id": "red-hat-design-system",
+      "name": "Red Hat Design System",
+      "owner": "Red Hat",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/RedHat-UX/red-hat-design-system"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://ux.redhat.com",
+      "oohdls": "https://oohdls.com/systems/red-hat-design-system-red-hat",
+      "status": "active"
+    },
+    {
+      "id": "clarity",
+      "name": "Clarity",
+      "owner": "VMware by Broadcom",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/vmware-clarity/ng-clarity"
+      ],
+      "license": "custom",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": "https://clarity.design",
+      "oohdls": "https://oohdls.com/systems/clarity-vmware-by-broadcom",
+      "status": "active"
+    },
+    {
+      "id": "momentum",
+      "name": "Momentum",
+      "owner": "Cisco Webex",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/momentum-design/momentum-design"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://momentum.design",
+      "oohdls": "https://oohdls.com/systems/momentum-cisco-webex",
+      "status": "active"
+    },
+    {
+      "id": "protocol",
+      "name": "Protocol",
+      "owner": "Mozilla",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/mozilla/protocol"
+      ],
+      "license": "MPL-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://protocol.mozilla.org",
+      "oohdls": "https://oohdls.com/systems/protocol-mozilla",
+      "status": "active"
+    },
+    {
+      "id": "ring-ui",
+      "name": "Ring UI",
+      "owner": "JetBrains",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/JetBrains/ring-ui"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://jetbrains.github.io/ring-ui",
+      "oohdls": "https://oohdls.com/systems/ring-ui-jetbrains",
+      "status": "active"
+    },
+    {
+      "id": "saga",
+      "name": "Saga",
+      "owner": "Grafana Labs",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/grafana/grafana"
+      ],
+      "license": "AGPL-3.0",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": "https://grafana.com/developers/saga",
+      "oohdls": "https://oohdls.com/systems/saga-grafana-labs",
+      "status": "active",
+      "notes": "Lives inside the Grafana monorepo (packages/grafana-ui); AGPL-3.0."
+    },
+    {
+      "id": "helios",
+      "name": "Helios",
+      "owner": "HashiCorp",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/hashicorp/design-system"
+      ],
+      "license": "MPL-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://helios.hashicorp.design",
+      "oohdls": "https://oohdls.com/systems/helios-hashicorp-an-ibm-company",
+      "status": "active"
+    },
+    {
+      "id": "vibe",
+      "name": "Vibe",
+      "owner": "monday.com",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/mondaycom/vibe"
+      ],
+      "license": "unknown",
+      "license_ok": null,
+      "has_public_figma": true,
+      "docs": "https://vibe.monday.com",
+      "oohdls": "https://oohdls.com/systems/vibe-monday-com",
+      "status": "active"
+    },
+    {
+      "id": "gestalt",
+      "name": "Gestalt",
+      "owner": "Pinterest",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/pinterest/gestalt"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://gestalt.pinterest.systems",
+      "oohdls": "https://oohdls.com/systems/gestalt-pinterest",
+      "status": "active"
+    },
+    {
+      "id": "odyssey",
+      "name": "Odyssey",
+      "owner": "Okta",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/okta/odyssey"
+      ],
+      "license": "custom",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": null,
+      "oohdls": "https://oohdls.com/systems/odyssey-okta",
+      "status": "active"
+    },
+    {
+      "id": "vanilla",
+      "name": "Vanilla Framework",
+      "owner": "Canonical",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/canonical/vanilla-framework"
+      ],
+      "license": "LGPL-3.0",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": "https://vanillaframework.io",
+      "oohdls": "https://oohdls.com/systems/vanilla-framework-canonical-ubuntu",
+      "status": "active"
+    },
+    {
+      "id": "wordpress-components",
+      "name": "WordPress Components",
+      "owner": "WordPress",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/WordPress/gutenberg"
+      ],
+      "license": "GPL-2.0-or-later",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": "https://wordpress.github.io/gutenberg",
+      "oohdls": "https://oohdls.com/systems/wordpress-components-wordpress-automattic",
+      "status": "active"
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "owner": "Wikimedia Foundation",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/wikimedia/design-codex"
+      ],
+      "license": "GPL-2.0",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": "https://doc.wikimedia.org/codex/latest",
+      "oohdls": "https://oohdls.com/systems/codex-wikimedia-foundation",
+      "status": "active"
+    },
+    {
+      "id": "crayons",
+      "name": "Crayons",
+      "owner": "Freshworks",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/freshworks-oss/crayons"
+      ],
+      "license": "unknown",
+      "license_ok": null,
+      "has_public_figma": false,
+      "docs": "https://crayons.freshworks.com",
+      "oohdls": "https://oohdls.com/systems/crayons-freshworks",
+      "status": "active"
+    },
+    {
+      "id": "radix-themes",
+      "name": "Radix Themes and Primitives",
+      "owner": "WorkOS",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/radix-ui/themes",
+        "https://github.com/radix-ui/primitives"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://www.radix-ui.com",
+      "oohdls": "https://oohdls.com/systems/radix-themes-and-primitives-workos",
+      "status": "active"
+    },
+    {
+      "id": "geist",
+      "name": "Geist",
+      "owner": "Vercel",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/vercel/geist-font"
+      ],
+      "license": "OFL-1.1",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://vercel.com/geist/introduction",
+      "oohdls": "https://oohdls.com/systems/geist-vercel",
+      "status": "active",
+      "notes": "Only the font and icons are open source; the components are not."
+    },
+    {
+      "id": "blueprint",
+      "name": "Blueprint",
+      "owner": "Palantir",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/palantir/blueprint"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://blueprintjs.com",
+      "oohdls": "https://oohdls.com/systems/blueprint-palantir",
+      "status": "active",
+      "notes": "Apache-2.0 based license that asks not to pass derivatives off as Palantir products."
+    },
+    {
+      "id": "hpe-grommet",
+      "name": "HPE Design System / Grommet",
+      "owner": "Hewlett Packard Enterprise",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/grommet/grommet"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://design-system.hpe.design",
+      "oohdls": "https://oohdls.com/systems/hpe-design-system-grommet-hewlett-packard-enterprise",
+      "status": "active"
+    },
+    {
+      "id": "calcite",
+      "name": "Calcite Design System",
+      "owner": "Esri",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/Esri/calcite-design-system"
+      ],
+      "license": "custom",
+      "license_ok": false,
+      "has_public_figma": true,
+      "docs": "https://developers.arcgis.com/calcite-design-system/",
+      "oohdls": "https://oohdls.com/systems/calcite-design-system-esri",
+      "status": "active"
+    },
+    {
+      "id": "forma-36",
+      "name": "Forma 36",
+      "owner": "Contentful",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/contentful/forma-36"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://f36.contentful.com",
+      "oohdls": "https://oohdls.com/systems/forma-36-contentful",
+      "status": "active"
+    },
+    {
+      "id": "braid",
+      "name": "Braid",
+      "owner": "SEEK",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/seek-oss/braid-design-system"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://seek-oss.github.io/braid-design-system",
+      "oohdls": "https://oohdls.com/systems/braid-seek",
+      "status": "active"
+    },
+    {
+      "id": "instructure-ui",
+      "name": "Instructure UI",
+      "owner": "Instructure",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/instructure/instructure-ui"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://instructure.design",
+      "oohdls": "https://oohdls.com/systems/instructure-ui-instructure-canvas-lms",
+      "status": "active"
+    },
+    {
+      "id": "coinbase-cds",
+      "name": "Coinbase Design System / CDS",
+      "owner": "Coinbase",
+      "platforms": [
+        "web",
+        "react-native"
+      ],
+      "github": [
+        "https://github.com/coinbase/cds"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://cds.coinbase.com",
+      "oohdls": "https://oohdls.com/systems/coinbase-design-system-cds-coinbase",
+      "status": "active"
+    },
+    {
+      "id": "salt",
+      "name": "Salt",
+      "owner": "J.P. Morgan",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/jpmorganchase/salt-ds"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://www.saltdesignsystem.com",
+      "oohdls": "https://oohdls.com/systems/salt-j-p-morgan",
+      "status": "active"
+    },
+    {
+      "id": "lion",
+      "name": "Lion",
+      "owner": "ING",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/ing-bank/lion"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://lion.js.org",
+      "oohdls": "https://oohdls.com/systems/lion-ing",
+      "status": "active"
+    },
+    {
+      "id": "orbit",
+      "name": "Orbit",
+      "owner": "Kiwi.com",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/kiwicom/orbit"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://orbit.kiwi",
+      "oohdls": "https://oohdls.com/systems/orbit-kiwi-com",
+      "status": "active"
+    },
+    {
+      "id": "backpack",
+      "name": "Backpack",
+      "owner": "Skyscanner",
+      "platforms": [
+        "ios",
+        "android"
+      ],
+      "github": [
+        "https://github.com/Skyscanner/backpack-ios",
+        "https://github.com/Skyscanner/backpack-android"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://www.skyscanner.design",
+      "oohdls": "https://oohdls.com/systems/backpack-skyscanner",
+      "status": "active",
+      "notes": "The web repo is archived; iOS and Android repos are active."
+    },
+    {
+      "id": "porsche",
+      "name": "Porsche Design System",
+      "owner": "Porsche",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/porsche-design-system/porsche-design-system"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://designsystem.porsche.com",
+      "oohdls": "https://oohdls.com/systems/porsche-design-system-porsche",
+      "status": "active",
+      "notes": "Code Apache-2.0; the Porsche brand is reserved."
+    },
+    {
+      "id": "siemens-ix",
+      "name": "Siemens iX",
+      "owner": "Siemens",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/siemens/ix"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://ix.siemens.io",
+      "oohdls": "https://oohdls.com/systems/siemens-ix-siemens",
+      "status": "active"
+    },
+    {
+      "id": "scale",
+      "name": "Scale",
+      "owner": "Deutsche Telekom",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/telekom/scale"
+      ],
+      "license": "MPL-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://telekom.github.io/scale",
+      "oohdls": "https://oohdls.com/systems/scale-deutsche-telekom",
+      "status": "active",
+      "notes": "Code MPL-2.0; the Telekom brand is reserved."
+    },
+    {
+      "id": "equinor-eds",
+      "name": "Equinor Design System / EDS",
+      "owner": "Equinor",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/equinor/design-system"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://eds.equinor.com",
+      "oohdls": "https://oohdls.com/systems/equinor-design-system-eds-equinor",
+      "status": "active"
+    },
+    {
+      "id": "orange-ods",
+      "name": "Orange Design System / Boosted",
+      "owner": "Orange",
+      "platforms": [
+        "web",
+        "ios",
+        "android"
+      ],
+      "github": [
+        "https://github.com/Orange-OpenSource/Orange-Boosted-Bootstrap",
+        "https://github.com/Orange-OpenSource/ouds-ios",
+        "https://github.com/Orange-OpenSource/ouds-android"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://boosted.orange.com",
+      "oohdls": "https://oohdls.com/systems/orange-design-system-boosted-orange",
+      "status": "active",
+      "notes": "ODS iOS/Android repos are archived; OUDS (ouds-ios, ouds-android) is the current mobile system."
+    },
+    {
+      "id": "gov-uk",
+      "name": "GOV.UK Design System",
+      "owner": "UK Government Digital Service",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/alphagov/govuk-frontend"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://design-system.service.gov.uk",
+      "oohdls": "https://oohdls.com/systems/gov-uk-design-system-uk-government-digital-service",
+      "status": "active"
+    },
+    {
+      "id": "nhs",
+      "name": "NHS Design System",
+      "owner": "NHS England",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/nhsuk/nhsuk-frontend"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://service-manual.nhs.uk/design-system",
+      "oohdls": "https://oohdls.com/systems/nhs-design-system-nhs-england",
+      "status": "active"
+    },
+    {
+      "id": "moj",
+      "name": "MOJ Design System",
+      "owner": "UK Ministry of Justice",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/ministryofjustice/moj-frontend"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://design-patterns.service.justice.gov.uk",
+      "oohdls": "https://oohdls.com/systems/moj-design-system-uk-ministry-of-justice",
+      "status": "active"
+    },
+    {
+      "id": "icds",
+      "name": "Intelligence Community Design System",
+      "owner": "UK SIS",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/mi6/ic-ui-kit"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://design.sis.gov.uk",
+      "oohdls": "https://oohdls.com/systems/intelligence-community-design-system-uk-sis-mi6-mi5-gchq",
+      "status": "active"
+    },
+    {
+      "id": "uswds",
+      "name": "U.S. Web Design System / USWDS",
+      "owner": "US GSA",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/uswds/uswds"
+      ],
+      "license": "CC0-1.0",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://designsystem.digital.gov",
+      "oohdls": "https://oohdls.com/systems/u-s-web-design-system-uswds-us-gsa",
+      "status": "active"
+    },
+    {
+      "id": "cms",
+      "name": "CMS Design System",
+      "owner": "US Centers for Medicare and Medicaid Services",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/CMSgov/design-system"
+      ],
+      "license": "CC0-1.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://design.cms.gov",
+      "oohdls": "https://oohdls.com/systems/cms-design-system-us-centers-for-medicare-medicaid-services",
+      "status": "active"
+    },
+    {
+      "id": "astro-uxds",
+      "name": "Astro UXDS",
+      "owner": "Rocket Communications",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/RocketCommunicationsInc/astro"
+      ],
+      "license": "custom",
+      "license_ok": false,
+      "has_public_figma": true,
+      "docs": "https://www.astrouxds.com",
+      "oohdls": "https://oohdls.com/systems/astro-uxds-us-space-force-rocket-communications",
+      "status": "active"
+    },
+    {
+      "id": "gcds",
+      "name": "GC Design System",
+      "owner": "Government of Canada",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/cds-snc/gcds-components"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://design-system.canada.ca",
+      "oohdls": "https://oohdls.com/systems/gc-design-system-government-of-canada-canadian-digital-service",
+      "status": "active"
+    },
+    {
+      "id": "gold",
+      "name": "GOLD Design System",
+      "owner": "Australia, community",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/designsystemau/gold-design-system"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://gold.designsystemau.org",
+      "oohdls": "https://oohdls.com/systems/gold-design-system-australia-community",
+      "status": "limited",
+      "notes": "Low activity since 2021."
+    },
+    {
+      "id": "agds",
+      "name": "Agriculture Design System / AgDS",
+      "owner": "Australian Department of Agriculture",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/agriculturegovau/agds-next"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://design-system.agriculture.gov.au",
+      "oohdls": "https://oohdls.com/systems/agriculture-design-system-agds-australian-department-of-agriculture-fisheries-and-forestry",
+      "status": "active"
+    },
+    {
+      "id": "dsfr",
+      "name": "DSFR",
+      "owner": "French Government",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/GouvernementFR/dsfr"
+      ],
+      "license": "Etalab-2.0 (use restricted)",
+      "license_ok": false,
+      "has_public_figma": true,
+      "docs": "https://www.systeme-de-design.gouv.fr",
+      "oohdls": "https://oohdls.com/systems/dsfr-systeme-de-design-de-l-etat-french-government",
+      "status": "active",
+      "notes": "Use is restricted to French State websites; study only, never copy its look."
+    },
+    {
+      "id": "sgds",
+      "name": "Singapore Government Design System / SGDS",
+      "owner": "GovTech Singapore",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/GovTechSG/sgds"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://www.designsystem.tech.gov.sg",
+      "oohdls": "https://oohdls.com/systems/singapore-government-design-system-sgds-govtech-singapore",
+      "status": "active"
+    },
+    {
+      "id": "aegov-dls",
+      "name": "UAE Design System / AEGOV DLS",
+      "owner": "UAE TDRA",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/TDRA-ae/aegov-dls"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://designsystem.gov.ae",
+      "oohdls": "https://oohdls.com/systems/uae-design-system-aegov-dls-uae-tdra",
+      "status": "active"
+    },
+    {
+      "id": "gel",
+      "name": "GEL, Global Experience Language",
+      "owner": "BBC",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/bbc/gel"
+      ],
+      "license": "unknown",
+      "license_ok": null,
+      "has_public_figma": false,
+      "docs": "https://bbc.github.io/gel",
+      "oohdls": "https://oohdls.com/systems/gel-global-experience-language-bbc",
+      "status": "active"
+    },
+    {
+      "id": "source",
+      "name": "Source",
+      "owner": "The Guardian",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/guardian/csnx"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://guardian.github.io/storybooks",
+      "oohdls": "https://oohdls.com/systems/source-the-guardian",
+      "status": "active"
+    },
+    {
+      "id": "backstage-ui",
+      "name": "Backstage UI",
+      "owner": "Backstage (CNCF)",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/backstage/backstage"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://ui.backstage.io",
+      "oohdls": "https://oohdls.com/systems/backstage-ui-spotify-backstage",
+      "status": "active"
+    },
+    {
+      "id": "base-web",
+      "name": "Base Web",
+      "owner": "Uber",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/uber/baseweb"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": false,
+      "docs": "https://baseweb.design",
+      "oohdls": "https://oohdls.com/systems/base-web-uber",
+      "status": "limited"
+    }
+  ]
+}
