@@ -1,5 +1,5 @@
 {
-  "$comment": "Reference library: studied design systems the workflow learns from and can start a project from. One entry per company and platform (web, ios, android, cross-platform). Add a company by adding entries; skills, intake and tools read this file instead of a brand name. How to add one: References.md.",
+  "$comment": "Reference library: studied design systems the workflow learns from and can start a project from. One entry per company and platform (web, ios, android, cross-platform). Add a company by adding entries; skills, intake and tools read this file instead of a brand name. How to add one: References.md. A public Figma file (figma_url) is required; optional fields: github_url (code repo that enriches the study with exact values) and source (\"figma\", the default when absent, or \"built-from-code\" when we built the Figma file from code).",
   "default": {
     "web": "web-library",
     "ios": "ios-library",

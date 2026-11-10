@@ -182,6 +182,7 @@ Follow the reference page layout (default Web entry in `references.json`): Cover
 
 ## Reference library (Abdul, 2026-10-01)
 - The studied design systems are a library, not one brand: `references.json` holds one entry per company and platform (Web, iOS, Android, cross-platform) with a per-platform default. Intake menus, README, skills and examples say "reference design system" and read names from the entry; no company name is hardcoded. Greenfield 3.1 offers "Start from a reference template" and lists the matching entries. Adding a company: `References.md`.
+- Figma required, code optional (Abdul, 2026-11-10): a reference entry needs a public Figma file (structure: pages, component and variant split, properties, slots, docs, variant screenshots). A GitHub link is optional, asked after the Figma link, and enriches the study (exact token values, props for `Code:`, states, accessibility); Figma wins on structure, code on exact values (differences noted). A DS with no public Figma file is a code reference only (Code first tokens / AGENTS.md, Scenario D source); a Figma file we build from its code is marked `"source": "built-from-code"`. Rules: `References.md` > Adding a design system.
 
 ## Platforms
 Web (Tailwind conventions), iOS (Apple HIG, Dynamic Type, SF Symbols), Android (Material 3, md.sys tokens). Each platform is fully independent: separate folders, skills, data and Storybook; nothing shared or merged.
