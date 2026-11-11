@@ -131,7 +131,8 @@ Trials ran one session per project (470-650 turns, context up to 690K tokens, re
 | 7b | `steps/fix-on-create.md` | a project starts from an existing file; last foundation step of a new build |
 | 7c | `steps/figma-files.md` | before the first Figma work of every session |
 | 7d, 7e, 7f | `steps/screens.md` | screens are built or changed |
-| 7e.0 | `steps/plan-user-flows.md` | a flow of two or more screens is requested (before the gap table) |
+| 7e.0 | `steps/plan-user-flows.md` | a flow of two or more screens is requested (before the gap table); skipped when Discover already wrote `Planning/07-flows/` |
+| 17 | `steps/discover.md` | after the approved Intake Summary when the project has screens (`scope` = `all` / `ds-screens`, or Vibe code): research, decisions, Information Architecture and user flows, before Foundation |
 | 10 | `steps/folders.md` | question 0.3, or unsure where a file goes |
 | 11, 12 | `steps/finish.md` | end of a build, Storybook step |
 | 13 | `steps/quick-mode.md` | `/ds-quick`, or one task on a live file without a project setup (section 0) |
@@ -141,7 +142,7 @@ Trials ran one session per project (470-650 turns, context up to 690K tokens, re
 - The platform Main Skill loads after 1.1 / 1.2. The Figma skills (figma-use, figma-generate-library, figma-generate-design, ui-ux-pro-max) load at the first Figma build step of a session, never during the intake questions; load each once per session.
 - Read the knowledge base before Figma: names, keys and values come from `data/tokens.json` and `data/component-registry.json`. Re-read Figma only for what the files do not hold, or when `CHANGELOG.md` shows a Figma change after the last export.
 
-**One phase per session.** Phases: Intake (ends at the approved Intake Summary), Foundation, Components (one session per group if the set is large), Screens (one flow, or up to 3 screens, per session), Storybook. At the end of each phase:
+**One phase per session.** Phases: Intake (ends at the approved Intake Summary), Discover (projects with screens: Research, then Planning; Light is one session, `steps/discover.md`), Foundation, Components (one session per group if the set is large), Screens (one flow, or up to 3 screens, per session), Storybook. At the end of each phase:
 1. Write the handoff: `Project_Brief.md` (Status, Checkpoints, one `Next step:` line with what the next session does first), the `CHANGELOG.md` entry, and `python tools/project_status.py "My Projects/<Project>"`. **Measure (Abdul, 2026-10-11):** run `python tools/session_cost.py` from the Root (add `--since <first day of the phase>` when the phase took several sessions) and copy its `Tokens:` and `Time:` lines into the phase's `CHANGELOG.md` entry, with `Phase: <name>`. It reads Claude Code's local session logs (subagents included) and sends nothing anywhere. At the end of a project, add the per-phase totals to `Project_Brief.md` and compare them with the first trials (180-260M tokens per project, memory/decisions.md > Token budget).
 2. Tell the user in one line: "Phase done. Please start a new session for <next phase>; it resumes from the project files."
 3. A resumed session reads only `Project_Brief.md`, `status.json`, the newest `CHANGELOG.md` entries and the step files of its phase. It does not re-read finished phases, re-export variables or re-screenshot approved work, unless the changelog shows work by another tool (then the CLAUDE.md handoff audit runs first).
@@ -230,7 +231,7 @@ Platform rules (never mix):
 
 ```
 Tools preflight (0b) -> machine setup missing something? -> steps/machine-setup.md (Set up now / myself / Later) -> which Figma tools are installed? None -> stop, Figma_Tools/README.md; both -> FigCli Yolo, Desktop Bridge only for slots; then connected? No -> stop
-Intake basics 0.0, 0.0q (Full workflow / Quick task), 0.0s (Figma / Vibe code: Vibe code -> steps/vibe-code.md: fresh or continue existing work, DS from my code / the library / my Figma DS, no Figma questions), 0.1-0.2b (Figma plan) (existing project: resume line, Continue / Something else) -> Platform (1.1-1.6) -> load platform Main Skill(s) -> folder + Inputs 0.3-0.3b -> path 2.1 (below) -> how far 2.1b (All the way / DS and screens / DS only) -> Greenfield + All the way: Figma first or Code first 2.1c -> All the way: data 2.1d -> Greenfield: visual direction 0.3e (brand files / Style library / defaults) -> prefill 0.3c -> 0.3s setup card ("Use all of these" / "Change some" / "Ask me each one" = 0.4-0.8 one by one; Brownfield / Code to Design: 0.4-0.6b confirmed from the source later)
+Intake basics 0.0, 0.0q (Full workflow / Quick task), 0.0s (Figma / Vibe code: Vibe code -> steps/vibe-code.md: fresh or continue existing work, DS from my code / the library / my Figma DS, no Figma questions), 0.1-0.2b (Figma plan) (existing project: resume line, Continue / Something else) -> Platform (1.1-1.6) -> load platform Main Skill(s) -> folder + Inputs 0.3-0.3b -> path 2.1 (below) -> how far 2.1b (All the way / DS and screens / DS only) -> Greenfield + All the way: Figma first or Code first 2.1c -> All the way: data 2.1d -> Greenfield: visual direction 0.3e (brand files / Style library / defaults) -> prefill 0.3c -> 0.3s setup card ("Use all of these" / "Change some" / "Ask me each one" = 0.4-0.8 one by one; Brownfield / Code to Design: 0.4-0.6b confirmed from the source later) -> Intake Summary -> projects with screens: Discover (steps/discover.md: research files? Yes / start new research / skip -> Light / Full -> brief -> secondary + market -> primary -> users ✋ -> decisions ✋ -> IA ✋ -> flows ✋) -> Foundation
    └─ Greenfield or Brownfield? (2.1)
       ├─ Greenfield
       │  ├─ Existing AI-ready DS (Figma DS + .md skills)? (3.1)
@@ -254,7 +255,7 @@ Intake basics 0.0, 0.0q (Full workflow / Quick task), 0.0s (Figma / Vibe code: V
                └─ Keep one file -> Scenario C with history versions instead of publish / Accept updates
 Every path from an existing file: Fix on create (section 7b), except a shared DS in Scenario D branch a (read only; issues are reported, not fixed)
 Every path: linked Figma files, publish and file check (section 7c)
-Every path: checkpoints Foundation -> Components -> Screens (section 8)
+Every path: checkpoints (Discover: Research, Decisions, IA, Flows when the project has screens) -> Foundation -> Components -> Screens (section 8)
 Every path ends: write project skills + final audit (section 11)
 Optional (0.8 = Yes): screens in a Design file after the Components checkpoint (publish first, section 8)
 Optional (0.7 = Enable it): Storybook after the Components checkpoint, only the checked sections (section 12)
@@ -276,6 +277,7 @@ Stop and ask for approval at each checkpoint. Show screenshots of each mode the 
 
 | Checkpoint | Show | Question |
 |---|---|---|
+| **0. Discover** (projects with screens, `steps/discover.md`) | Research (Full only): sources, personas, jobs, journeys; Decisions: each decision with its evidence tags and confidence; IA: sitemap, navigation, object model, glossary; Flows: one flow map per flow with its states | Ask (choice): "Research is ready. Approve it?" / "Decisions are ready. Approve them?" / "Approve the IA?" / one per flow, each "Approve (Recommended)" / "Request changes" (Light: Decisions, then IA and flows together) |
 | **1. Foundation** | Colors (Primitives + Semantics, per mode), typography scale, spacing, radius, shadows, icons, the ➜ App Icon page (drop zones, or the presented icon, section 7h), contrast results, Fix on create before/after, **user to-do list** (e.g. rename the Figma file to '<Project> Design System', which a plugin cannot do; drop the app icon into ➜ App Icon while it is still waiting) | Ask (choice): "Foundation is ready. Approve it?" "Approve, go to components (Recommended)" / "Request changes" |
 | **2. Components** | Every component set per group, all variants and states, per-mode previews; anything left out and why (e.g. Avatar Photo when no photo was supplied) | Ask (choice): "Components are ready. Approve them?" "Approve (Recommended)" (description: screens or Storybook come next when planned) / "Request changes". If screens will follow (0.8 = Yes) or Storybook is due, the to-do list holds "Publish '<Project> Design System' as a library (Assets > Library > Publish)" and "Enable it in the Design file" (screens go in a separate Design file that must enable this library), then the to-do question above. Save `design_system.last_publish` in `status.json` when confirmed. Single-file projects (`figma.layout` = `single-file`, section 7g) skip the publish question and save a Figma version instead. |
 | **3. Screens** | Every rebuilt or new screen next to its source (screen spec and side-by-side captures, section 7f), per mode, and the Design file audit result with the fidelity checks (section 7d) | Ask (choice): "Screens are ready. Approve them?" "Approve (Recommended)" / "Request changes" |
@@ -306,6 +308,7 @@ Modes: <Light / Dark>      RTL: <Yes/No>      Fonts: <Latin / Arabic>   (each: a
 Icons: <library (license)> / existing set in <file or library>   (asked / from <file or code>)
 Path: <Greenfield 3a/3b-3d | Brownfield type 1/3 | Code to Design a (existing DS, editable page: <name>) / b (new DS)>
 Inputs found: Brand <n files / empty>, Inspiration <n / empty>, Screens <n / link>, Research <n / empty>
+Discover: <next, after this summary: research files / new research / skip (asked at D0) / not run (DS only)>
 Direction: <Style: <title> (inspired by <brand>) from Style_Library, or brand files / defaults; style, corner/density/elevation, brand contrast result and fix>
 Goes to: <All the way: DS, screens, live prototype, backend (optional), handoff / DS and screens / DS only>   Design first: <Figma first / Code first / -> (Greenfield + All the way only)
 Data: <Sample data first, connect Supabase at stage 8 (Backend page) / Set up at stage 8 / Not sure / -> (All the way only, 2.1d)>

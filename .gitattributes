@@ -2,3 +2,6 @@
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
 *.command text eol=lf
+
+# Append-only logs: when two sessions add entries at the same place, keep both (no conflict markers)
+memory/lessons.md merge=union

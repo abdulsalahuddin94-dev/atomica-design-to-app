@@ -9,7 +9,7 @@ Part of `Design_System_Intake_Skill` (map in `SKILL.md` section 0c). Load when 0
 - **Not asked:** 0.2 (Figma links), 0.2b (Figma plan), 2.1 (Greenfield / Brownfield / Code to Design) and 2.1c (Figma first or Code first: the answer is Code first). Record `status.json > start = "vibe-code"` and `status.json > prototype.design_mode = "code-first"`, the value the dashboard's Design page reads (chat + live preview).
 - **Preflight (0b):** the Figma tool checks (installed? connected?) do **not** block a Vibe code project. Run them only at the first step that needs Figma: 16.2 "My design system on Figma", or a later "Sync with Figma" / Code to Design (Scenario D) request. Machine setup (check 0) still runs.
 - **Still asked, same as always:** 0.1 name, the platform (1.1-1.6), 0.3 / 0.3d / 0.3b folder and Inputs, 2.1b how far, 2.1d data (All the way only), the 0.3s setup card (Vibe code lists 0.4-0.6b only when 16.2 did not already answer them).
-- **Order:** 0.0s -> 16.1 -> 0.1 -> platform -> 0.3, 0.3d, 0.3b -> 16.2 -> 2.1b -> 2.1d -> 0.3c / 0.3s -> Intake Summary.
+- **Order:** 0.0s -> 16.1 -> 0.1 -> platform -> 0.3, 0.3d, 0.3b -> 16.2 -> 2.1b -> 2.1d -> 0.3c / 0.3s -> Intake Summary -> Discover (`steps/discover.md`, research to user flows) before the first screen in code.
 - **Figma later:** Figma is never required. When the user wants Figma screens, run Code to Design (`steps/code-to-design.md`) on the project's code; its 0.2-style link questions are asked then. Each component keeps one owner (`code` / `figma`) in `status.json`, as in Code first (`memory/decisions.md` > 5A).
 
 ## 16.1 Start fresh or continue existing work

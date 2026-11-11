@@ -48,3 +48,6 @@ private/
 contributions/
 CLAUDE.local.md
 .trial/
+
+# Impeccable skill cache (per machine)
+.impeccable/

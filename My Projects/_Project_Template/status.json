@@ -16,6 +16,7 @@
   "icons": null,
   "images": { "source": null },
   "style": null,
+  "discover": null,
   "code_to_design": null,
   "source_code": null,
   "figma": {
@@ -42,5 +43,6 @@
   "_code_help": "Scenario D (Code to Design, Intake section 6) only. code_to_design: existing-ds | new-ds. source_code: {repo, branch, path, preview_url}. existing-ds: figma.design_system.shared is true and editable_pages lists the only DS pages that may be written; design_files may hold a role: reference entry (read only).",
   "_icons_help": "Intake 0.6b: {library: lucide | sf-symbols-style | material-symbols | phosphor | tabler | heroicons | remix | existing | <other id>, source: file or library name when existing, style: weight and outline/fill}. Library details and licenses: tools/icon_libraries.json.",
   "_style_help": "Intake 0.3e (Greenfield only, steps/style-library.md): null (no style or brand files only) or {slug, title, category, inspired_by_brand: true | false, file: Style_Library/<slug>/DESIGN.md, source: intake | dashboard}. Look only: the components still follow the platform's default reference design system (references.json).",
+  "_discover_help": "Discover stage (steps/discover.md, projects with screens): null until D0, then {depth: light | full | skip, research_files: <n>, notebook: null | {id, title} (Gemini Notebook, never shared publicly), checkpoints: {research, decisions, ia, flows: {<flow>: ready | approved}}}. Files: Research/ and Planning/ in this folder.",
   "_app_icon_help": "Set when ➜ App Icon is created (Intake section 7h): {status: waiting | presented, appearances: [names made, e.g. Default, Dark, Tinted / Foreground, Background, Monochrome / Light, Dark, Maskable], last_update: date}. A session that finds status waiting checks the drop zones once, read-only."
 }
