@@ -122,7 +122,7 @@ async function runUpdate() {
     box.className = "update " + (r.ok ? "ok" : "err");
     box.replaceChildren(
       el("div", { class: "what" }, el("b", {}, r.message),
-        r.ok ? el("div", { class: "note" }, r.needsInstall
+        r.ok ? el("div", { class: "note" }, r.needsInstall || r.needsRestart
           ? "The dashboard itself changed: close its window and open Start-Dashboard again."
           : "New skills and rules apply from your next request.") : null),
       el("button", { class: "ghost", type: "button", onclick: () => { box.hidden = true; box.className = "update"; } }, "Close"),

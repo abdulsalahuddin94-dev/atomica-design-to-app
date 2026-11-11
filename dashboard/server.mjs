@@ -18,7 +18,6 @@ import { createRequire } from "node:module";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { TOOLS, toolStatus, loginCommand, antigravityPath, usageStore, handoffCommand, LIMIT_RE, which } from "./tools.mjs";
 import { startAcp } from "./acp.mjs";
-import { updateWorkflow as runWorkflowUpdate } from "./workflow-update.mjs";
 import { handleProjectApi, projectLinks, autoVersion } from "./project-api.mjs";
 import { createRequire as requireFrom } from "node:module";
 // However the dashboard was started (shortcut, script, another tool), its child processes (Claude, gh, git, publish)
@@ -274,10 +273,14 @@ function workflowInfo(fetch) {
   return { git: true, branch, behind: behind.ok ? Number(behind.out) : 0, changes, dirty, head: git(["log", "-1", "--format=%h %cs"]).out };
 }
 
-// A Root left on an already merged thread branch is backed up and switched to master first (workflow-update.mjs).
-function updateWorkflow() {
+// The updater is loaded fresh on every click, so a fix to it that an earlier update brought in applies at once,
+// without restarting the dashboard (workflow-update.mjs has no imports of its own).
+async function updateWorkflow() {
   if (!fs.existsSync(path.join(ROOT, ".git"))) return { ok: false, message: "This folder is not a Git clone, so it cannot update itself." };
-  return runWorkflowUpdate(git);
+  const url = new URL("./workflow-update.mjs", import.meta.url);
+  url.search = "t=" + Date.now();
+  const { updateWorkflow: run } = await import(url.href);
+  return run(git);
 }
 
 // ---------- Claude sessions ----------
@@ -1280,7 +1283,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && p === "/api/phase-times") return send(res, 200, { phases: phaseTimes(ROOT) });
     const sm = req.method === "GET" && p.match(/^\/api\/styles\/([a-z0-9-]+)$/);
     if (sm) { const s = readStyle(sm[1]); return send(res, s ? 200 : 404, s || { error: "Style not found" }); }
-    if (req.method === "POST" && p === "/api/workflow/update") return send(res, 200, updateWorkflow());
+    if (req.method === "POST" && p === "/api/workflow/update") return send(res, 200, await updateWorkflow());
     if (req.method === "GET" && p === "/api/settings") return send(res, 200, { ...getSettings(), awake: awakeState() });
     if (req.method === "POST" && p === "/api/settings") { const b = await readBody(req); return send(res, 200, setSettings(b)); }
     if (req.method === "GET" && p === "/api/tools") return send(res, 200, { tools: toolStatus(url.searchParams.get("fresh") === "1", () => authStatus(false)), settings: getSettings() });
