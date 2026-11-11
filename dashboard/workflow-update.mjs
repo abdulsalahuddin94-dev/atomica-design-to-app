@@ -46,10 +46,32 @@ export function updateWorkflow(git, { today = new Date().toISOString().slice(0, 
   if (ahead > 0) {
     return { ok: false, message: `Your local master has ${ahead} commit(s) that are not on GitHub, so it cannot fast-forward. Nothing more was changed. Ask Claude to help.`, notes };
   }
+  // Local edits in files the update also changes (often a lesson another session added to memory/lessons.md)
+  // would stop the fast-forward. They are set aside in a named stash, the update runs, then they are put back.
+  // If they cannot go back cleanly, those files take the updated version and the edits stay in the stash.
+  const lines = (r) => (r.ok ? r.out.split("\n").map((s) => s.trim()).filter(Boolean) : []);
+  const dirty = lines(git(["diff", "--name-only", "HEAD"]));
+  const incoming = new Set(lines(git(["diff", "--name-only", "HEAD", "origin/master"])));
+  const overlap = dirty.filter((f) => incoming.has(f));
+  const stashName = `Update now ${today}: local edits in ${overlap.join(", ")}`;
+  if (overlap.length && !git(["stash", "push", "-m", stashName, "--", ...overlap]).ok) {
+    return { ok: false, message: "Could not set your local edits aside before updating. Nothing was changed. Ask Claude to help.", notes };
+  }
   const r = git(["pull", "--ff-only", "origin", "master"], 60000);
   if (!r.ok) {
-    const dirty = git(["status", "--porcelain", "--untracked-files=no"]).out.split("\n").filter(Boolean).map((l) => l.slice(3));
-    return { ok: false, message: "The update stopped without changing anything. Your local edits in these files touch the same files as the update: " + (dirty.join(", ") || "see details") + ". Ask Claude to help.", details: r.out, notes };
+    if (overlap.length) git(["stash", "pop"]);
+    return { ok: false, message: "The update stopped without changing anything. Ask Claude to help.", details: r.out, notes };
+  }
+  if (overlap.length) {
+    const pop = git(["stash", "pop"]);
+    if (!pop.ok) {
+      git(["checkout", "HEAD", "--", ...overlap]);
+      git(["reset", "-q"]);
+      notes.push(`Your local edits in ${overlap.join(", ")} could not be put back automatically; they are kept in the git stash "${stashName}". Ask Claude to put them back.`);
+      return { ok: true, message: ["Workflow updated.", ...notes].join(" "), details: r.out + "\n" + pop.out, needsInstall: /dashboard\/package(-lock)?\.json/.test(r.out) };
+    }
+    git(["reset", "-q"]);
+    notes.push(`Your local edits in ${overlap.join(", ")} were kept.`);
   }
   return { ok: true, message: ["Workflow updated.", ...notes].join(" "), details: r.out, needsInstall: /dashboard\/package(-lock)?\.json/.test(r.out) };
 }

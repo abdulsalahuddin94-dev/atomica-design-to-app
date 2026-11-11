@@ -72,6 +72,38 @@ test("on a branch with unmerged commits: refuses and changes nothing", () => {
   assert.equal(g(["rev-parse", "HEAD"]).out, before);
 });
 
+test("a local lesson in a file the update also changes: both lessons kept (union merge)", () => {
+  const { dev, root } = setup();
+  const head = "# Lessons\n\nIntro.\n\n## Old\nold\n";
+  write(dev, ".gitattributes", "lessons.md merge=union\n"); write(dev, "lessons.md", head);
+  run(dev, "add", "."); run(dev, "commit", "-qm", "lessons"); run(dev, "push", "-q", "origin", "master");
+  run(root, "pull", "-q", "--ff-only", "origin", "master");
+  write(dev, "lessons.md", head.replace("## Old", "## From GitHub\ngh\n\n## Old")); run(dev, "commit", "-qam", "gh lesson"); run(dev, "push", "-q", "origin", "master");
+  write(root, "lessons.md", head.replace("## Old", "## From a local session\nlocal\n\n## Old"));
+  const r = updateWorkflow(gitIn(root), { today: "2026-11-11" });
+  assert.equal(r.ok, true, r.message);
+  assert.match(r.message, /were kept/);
+  const text = fs.readFileSync(path.join(root, "lessons.md"), "utf8");
+  assert.match(text, /From GitHub/); assert.match(text, /From a local session/); assert.doesNotMatch(text, /<<<<<<<|>>>>>>>/);
+  const g = gitIn(root);
+  assert.equal(g(["rev-parse", "HEAD"]).out, g(["rev-parse", "origin/master"]).out);
+  assert.equal(g(["stash", "list"]).out, "");
+});
+
+test("a local edit that cannot be put back: updates, keeps the edit in a named stash, no conflict markers", () => {
+  const { dev, root } = setup();
+  write(dev, "a.md", "from github\n"); run(dev, "commit", "-qam", "change a"); run(dev, "push", "-q", "origin", "master");
+  write(root, "a.md", "local change\n");
+  const r = updateWorkflow(gitIn(root), { today: "2026-11-11" });
+  assert.equal(r.ok, true, r.message);
+  assert.match(r.message, /kept in the git stash/);
+  const g = gitIn(root);
+  assert.equal(g(["rev-parse", "HEAD"]).out, g(["rev-parse", "origin/master"]).out);
+  assert.equal(fs.readFileSync(path.join(root, "a.md"), "utf8").replace(/\r/g, ""), "from github\n");
+  assert.match(g(["stash", "list"]).out, /Update now 2026-11-11: local edits in a\.md/);
+  assert.equal(g(["status", "--porcelain", "--untracked-files=no"]).out, "");
+});
+
 test("local master with its own commits: refuses", () => {
   const { dev, root } = setup();
   write(root, "l.md", "l\n"); run(root, "add", "."); run(root, "commit", "-qm", "local only");
