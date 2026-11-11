@@ -59,17 +59,59 @@ test("on a merged thread branch with only a merge of master: backs up, switches 
   assert.equal(fs.readFileSync(path.join(root, "a.md"), "utf8").replace(/\r/g, ""), "one\nlocal edit\n");
 });
 
-test("on a branch with unmerged commits: refuses and changes nothing", () => {
-  const { root } = setup();
+test("on a branch with unmerged commits: stays on it, keeps a backup and merges the update in", () => {
+  const { dev, root } = setup();
   run(root, "switch", "-qc", "open-pr");
   write(root, "x.md", "x\n"); run(root, "add", "."); run(root, "commit", "-qm", "not merged");
+  write(dev, "b.md", "new\n"); run(dev, "add", "."); run(dev, "commit", "-qm", "update"); run(dev, "push", "-q", "origin", "master");
+  const g = gitIn(root);
+  const before = g(["rev-parse", "HEAD"]).out;
+  const r = updateWorkflow(g, { today: "2026-11-11" });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(g(["rev-parse", "--abbrev-ref", "HEAD"]).out, "open-pr");
+  assert.ok(fs.existsSync(path.join(root, "b.md")) && fs.existsSync(path.join(root, "x.md")));
+  assert.equal(g(["rev-parse", "backup/open-pr-before-update-2026-11-11"]).out, before);
+});
+
+test("own commits that clash with the update: merge aborted, nothing changed, local edit kept", () => {
+  const { dev, root } = setup();
+  write(root, "a.md", "mine\n"); run(root, "commit", "-qam", "local only");
+  write(root, "c.md", "c\n"); run(root, "add", "c.md"); run(root, "commit", "-qm", "c");
+  write(dev, "a.md", "theirs\n"); run(dev, "commit", "-qam", "update"); run(dev, "push", "-q", "origin", "master");
+  write(root, "c.md", "c edited\n");
   const g = gitIn(root);
   const before = g(["rev-parse", "HEAD"]).out;
   const r = updateWorkflow(g, { today: "2026-11-11" });
   assert.equal(r.ok, false);
-  assert.match(r.message, /not in master yet/);
-  assert.equal(g(["rev-parse", "--abbrev-ref", "HEAD"]).out, "open-pr");
+  assert.match(r.message, /clash/);
   assert.equal(g(["rev-parse", "HEAD"]).out, before);
+  assert.equal(fs.readFileSync(path.join(root, "c.md"), "utf8").replace(/\r/g, ""), "c edited\n");
+  assert.ok(!g(["rev-parse", "-q", "--verify", "MERGE_HEAD"]).ok);
+  assert.equal(g(["stash", "list"]).out, "");
+});
+
+test("an untracked file where the update adds one: set aside in the stash, update goes through", () => {
+  const { dev, root } = setup();
+  write(dev, "n.md", "from github\n"); run(dev, "add", "."); run(dev, "commit", "-qm", "add n"); run(dev, "push", "-q", "origin", "master");
+  write(root, "n.md", "my own\n"); write(root, "keep.txt", "untouched\n");
+  const g = gitIn(root);
+  const r = updateWorkflow(g, { today: "2026-11-11" });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(g(["rev-parse", "HEAD"]).out, g(["rev-parse", "origin/master"]).out);
+  assert.equal(fs.readFileSync(path.join(root, "n.md"), "utf8").replace(/\r/g, ""), "from github\n");
+  assert.match(g(["stash", "list"]).out, /Update now 2026-11-11/);
+  assert.ok(fs.existsSync(path.join(root, "keep.txt")), "other untracked files stay in place");
+});
+
+test("detached HEAD: switches to master and updates", () => {
+  const { dev, root } = setup();
+  run(root, "switch", "-q", "--detach");
+  write(dev, "b.md", "new\n"); run(dev, "add", "."); run(dev, "commit", "-qm", "update"); run(dev, "push", "-q", "origin", "master");
+  const g = gitIn(root);
+  const r = updateWorkflow(g, { today: "2026-11-11" });
+  assert.equal(r.ok, true, r.message);
+  assert.equal(g(["rev-parse", "--abbrev-ref", "HEAD"]).out, "master");
+  assert.ok(fs.existsSync(path.join(root, "b.md")));
 });
 
 test("a local lesson in a file the update also changes: both lessons kept (union merge)", () => {
@@ -104,11 +146,16 @@ test("a local edit that cannot be put back: updates, keeps the edit in a named s
   assert.equal(g(["status", "--porcelain", "--untracked-files=no"]).out, "");
 });
 
-test("local master with its own commits: refuses", () => {
+test("local master with its own commits: keeps them (backup) and merges the update in", () => {
   const { dev, root } = setup();
   write(root, "l.md", "l\n"); run(root, "add", "."); run(root, "commit", "-qm", "local only");
   write(dev, "b.md", "new\n"); run(dev, "add", "."); run(dev, "commit", "-qm", "update"); run(dev, "push", "-q", "origin", "master");
-  const r = updateWorkflow(gitIn(root), { today: "2026-11-11" });
-  assert.equal(r.ok, false);
-  assert.match(r.message, /not on GitHub/);
+  write(root, "a.md", "one\nlocal edit\n");
+  const g = gitIn(root);
+  const r = updateWorkflow(g, { today: "2026-11-11" });
+  assert.equal(r.ok, true, r.message);
+  assert.ok(fs.existsSync(path.join(root, "b.md")) && fs.existsSync(path.join(root, "l.md")));
+  assert.ok(g(["merge-base", "--is-ancestor", "origin/master", "HEAD"]).ok);
+  assert.ok(g(["rev-parse", "--verify", "refs/heads/backup/master-before-update-2026-11-11"]).ok);
+  assert.equal(fs.readFileSync(path.join(root, "a.md"), "utf8").replace(/\r/g, ""), "one\nlocal edit\n");
 });
