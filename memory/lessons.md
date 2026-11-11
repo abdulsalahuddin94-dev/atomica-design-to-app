@@ -4,6 +4,14 @@ Every mistake Abdul reports or a check finds gets one entry here in the session 
 
 Teammates share their lessons through `/contribute` (`CONTRIBUTING.md`); an entry lands here only after Abdul accepts it, marked `(contributed by <login>)`.
 
+## A failed FigCli write script is not rolled back (2026-11-08)
+1. **A script that threw left a half-built screen and a clone behind.** The Assigned tasks build failed on a missing variable and the Trips script failed at its menu step; the new frames stayed on the page, although the Plugin API rules say a thrown error rolls the call back.
+   Cause: under FigCli eval, edits made before the throw stayed. Rule: after any failed FigCli write, list what the script creates and remove only those copies before re-running; guard scripts with an "exists" check. Check: the guard throws on re-run when a leftover exists.
+
+## Proposed new components that already existed on another page (2026-11-08)
+1. **Status Pill and Row Action Button were proposed and one was built, though the Organization screens already had them (Abdul).** The Employees table needed an Active pill and Edit / Toggle / Delete row actions; Claude searched the DS file by component name, found nothing reusable, and built a Status Pill. Abdul pointed out that the Organization page uses Badge (Success / Pending) and a Row Actions frame of 3 Icon Buttons for exactly this.
+   Cause: the gap table was built from the DS file's component names only; the Design file's other screens, where the same code pattern (`TableRowActions`, `StatusPill`) was already drawn, were not checked. Rule: before proposing a new component for a code component, search the Design file's screens for instances already standing in for it (same code component used on another route), and reuse that pattern. Check: the gap table lists, per new component, the Design file pages searched.
+
 ## New intake questions never reached the intake (2026-11-04)
 1. **Start new project in the dashboard showed the old intake (Abdul).** It asked the project name and the Figma links as before, with no Full workflow / Quick task menu, no "How far should this project go?" and no Figma first / Code first question.
    Cause: the Live prototype decisions (1A How far, 5A Code first, 2026-11-03) and the Quick task choice were written only in `memory/decisions.md` and in the dashboard's Design page; `Design_System_Intake_Skill/SKILL.md`, the file every session follows, was never changed, so the dashboard and the terminal both ran the old order. The menus themselves worked; the name and links are typed questions by design. Rule: a decision that changes a flow is written into the skill file (and the dashboard prompt) in the same change (`decisions.md` > Entry flow). Check: grep the new question text in `Design_System_Intake_Skill/` before calling the change done.
