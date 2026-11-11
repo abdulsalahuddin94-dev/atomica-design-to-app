@@ -18,6 +18,7 @@ import { createRequire } from "node:module";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { TOOLS, toolStatus, loginCommand, antigravityPath, usageStore, handoffCommand, LIMIT_RE, which } from "./tools.mjs";
 import { startAcp } from "./acp.mjs";
+import { updateWorkflow as runWorkflowUpdate } from "./workflow-update.mjs";
 import { handleProjectApi, projectLinks, autoVersion } from "./project-api.mjs";
 import { createRequire as requireFrom } from "node:module";
 // However the dashboard was started (shortcut, script, another tool), its child processes (Claude, gh, git, publish)
@@ -273,15 +274,10 @@ function workflowInfo(fetch) {
   return { git: true, branch, behind: behind.ok ? Number(behind.out) : 0, changes, dirty, head: git(["log", "-1", "--format=%h %cs"]).out };
 }
 
+// A Root left on an already merged thread branch is backed up and switched to master first (workflow-update.mjs).
 function updateWorkflow() {
-  const info = workflowInfo(true);
-  if (!info.git) return { ok: false, message: "This folder is not a Git clone, so it cannot update itself." };
-  if (info.branch !== "master") return { ok: false, message: `The workflow folder is on the branch "${info.branch}", not master. Switch to master first (ask Claude).` };
-  const r = git(["pull", "--ff-only", "origin", "master"], 60000);
-  if (!r.ok) {
-    return { ok: false, message: "The update stopped without changing anything. Your local edits in these files touch the same lines: " + (info.dirty.join(", ") || "see details") + ". Ask Claude to help.", details: r.out };
-  }
-  return { ok: true, message: "Workflow updated.", details: r.out, needsInstall: /dashboard\/package(-lock)?\.json/.test(r.out) };
+  if (!fs.existsSync(path.join(ROOT, ".git"))) return { ok: false, message: "This folder is not a Git clone, so it cannot update itself." };
+  return runWorkflowUpdate(git);
 }
 
 // ---------- Claude sessions ----------
