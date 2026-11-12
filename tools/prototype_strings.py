@@ -35,8 +35,9 @@ def texts_of(node, out, screen):
     if node.get("t") == "T" and (node.get("chars") or "").strip():
         out.setdefault(node["chars"], set()).add(screen)
     for v in (node.get("p") or {}).values():
-        if isinstance(v, str) and v.strip():
-            out.setdefault(v, set()).add(screen)
+        for item in v if isinstance(v, list) else [v]:  # a list is a code prop such as a Dialog's options
+            if isinstance(item, str) and item.strip():
+                out.setdefault(item, set()).add(screen)
     for v in (node.get("tx") or {}).values():
         if isinstance(v, str) and v.strip():
             out.setdefault(v, set()).add(screen)

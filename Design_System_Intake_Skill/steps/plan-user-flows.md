@@ -9,6 +9,7 @@ Part of `Design_System_Intake_Skill` (loaded with `steps/screens.md` when a flow
 - Every new flow (sign-up, checkout, booking, settings...) in Greenfield, Brownfield and Code to Design.
 - Brownfield / Code to Design: the screens that exist come from the source (screenshots, frames, routes in `Inputs/Code_Inventory.md`); the map adds the states and branches the source does not show and marks them `not in source`, so the user decides whether to design them.
 - Skip it for a single screen or a change to one existing screen.
+- Skip it when Discover (`steps/discover.md` 17.7) already wrote and approved `Planning/07-flows/<flow>.md` for this flow; that file uses this same format.
 
 ## Inputs
 

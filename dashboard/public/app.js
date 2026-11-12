@@ -122,7 +122,7 @@ async function runUpdate() {
     box.className = "update " + (r.ok ? "ok" : "err");
     box.replaceChildren(
       el("div", { class: "what" }, el("b", {}, r.message),
-        r.ok ? el("div", { class: "note" }, r.needsInstall
+        r.ok ? el("div", { class: "note" }, r.needsInstall || r.needsRestart
           ? "The dashboard itself changed: close its window and open Start-Dashboard again."
           : "New skills and rules apply from your next request.") : null),
       el("button", { class: "ghost", type: "button", onclick: () => { box.hidden = true; box.className = "update"; } }, "Close"),
@@ -1002,7 +1002,7 @@ function renderChat(id, mount) {
   // The intake (and every later phase) puts a progress line in each question: the AskUserQuestion header or the first
   // line of a typed question ("Intake 2/11"). Once one is seen, the conversation shows as a wizard: a progress bar on
   // top and only the current step (Claude's question with its menu or input fields); "Show conversation" shows all.
-  const STEP_RE = /^[\s*_#>]*((?:Intake|Checkpoint|Foundation|Components|Screens|Storybook|Quick task)\b[^\n*_]*?)\s*(?:(\d+)\s*\/\s*(\d+))?[\s*_]*$/i;
+  const STEP_RE = /^[\s*_#>]*((?:Intake|Discover|Checkpoint|Foundation|Components|Screens|Storybook|Quick task)\b[^\n*_]*?)\s*(?:(\d+)\s*\/\s*(\d+))?[\s*_]*$/i;
   const parseStep = (line) => {
     // the last progress line in the text: a reply can start with notes and end with the question
     const m = String(line || "").split("\n").map((l) => l.match(STEP_RE)).filter(Boolean).pop();
@@ -1012,10 +1012,11 @@ function renderChat(id, mount) {
   };
   const wiz = { on: false, step: null, open: null };
   // the whole journey (proposal v3): the stage of the current question is marked, earlier ones done
-  const WIZ_STAGES = [["intake", "Intake"], ["foundation", "Foundation"], ["components", "Components"], ["screens", "Screens"],
+  const WIZ_STAGES = [["intake", "Intake"], ["discover", "Discover"], ["foundation", "Foundation"], ["components", "Components"], ["screens", "Screens"],
     ["proto", "Live prototype"], ["backend", "Backend"], ["handoff", "Handoff"], ["finish", "Finish"]];
   const stageOf = (name) => {
     const n = String(name || "").toLowerCase();
+    if (n.startsWith("discover")) return "discover";
     if (/^checkpoint\s*1/.test(n) || n.startsWith("foundation")) return "foundation";
     if (/^checkpoint\s*2/.test(n) || n.startsWith("components")) return "components";
     if (/^checkpoint\s*3/.test(n) || n.startsWith("screens")) return "screens";
@@ -1038,7 +1039,7 @@ function renderChat(id, mount) {
   log.before(wizBar);
   // The project's plan (intake 2.1b, status.json > scope) greys out the stages it does not go to.
   const wizScope = (scope) => {
-    const off = scope === "ds" ? ["screens", "proto", "backend", "handoff"] : scope === "ds-screens" ? ["proto", "backend", "handoff"] : [];
+    const off = scope === "ds" ? ["discover", "screens", "proto", "backend", "handoff"] : scope === "ds-screens" ? ["proto", "backend", "handoff"] : [];
     for (const li of wizBar.querySelectorAll(".wiz-stages li")) li.classList.toggle("off", off.includes(li.dataset.stage));
   };
   function wizStep(step) {
@@ -1119,6 +1120,37 @@ function renderChat(id, mount) {
       card.append(repo.row, branch.row, local.row, make.row, live.row,
         el("div", { class: "foot" }, back, el("button", { type: "button", class: "primary", onclick: next }, "Next")));
       setTimeout(() => repo.input.focus(), 0);
+    } else if (/describe the product idea/i.test(text)) {
+      // Start new research (Discover D0.1, steps/discover.md): the idea in a text box, helpful documents attached into Inputs/Research.
+      const idea = el("textarea", { rows: 6, placeholder: "The product idea, who it is for, the market or country, and what you want to learn", dir: "auto" });
+      const list = el("ul", { class: "file-list" });
+      const attached = [];
+      const project = state.session?.project;
+      const pick = el("input", { type: "file", multiple: true, hidden: true, onchange: async () => {
+        if (!project) { toast("Pick a project first; the files go into its Inputs/Research folder."); return; }
+        for (const f of [...pick.files]) {
+          if (f.size > 50 * 1048576) { toast(`${f.name} is over 50 MB; copy it into Inputs/Research by hand.`); continue; }
+          const row = el("li", { class: "uploading" }, el("span", { class: "fname" }, f.name), el("span", { class: "note" }, "Adding…"));
+          list.append(row);
+          try {
+            const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+            const r = await api(`/api/projects/${encodeURIComponent(project)}/inputs`, { kind: "Research", name: f.name, data });
+            attached.push(`Inputs/Research/${r.name}`);
+            row.classList.remove("uploading"); row.querySelector(".note").textContent = "Added";
+          } catch (e) { row.remove(); toast(`${f.name}: ${e.message}`); }
+        }
+        pick.value = "";
+      } });
+      const next = () => {
+        const v = idea.value.trim();
+        if (!v) { idea.focus(); toast("Describe the idea first; the documents are optional."); return; }
+        done(attached.length ? `${v}\n\nAttached documents:\n${attached.map((a) => `- ${a}`).join("\n")}` : v);
+      };
+      card.append(el("label", { class: "wiz-field" }, el("span", {}, "Start new research"), idea),
+        el("div", { class: "wiz-field" }, el("span", {}, "Documents that help (optional): a brief, a pitch deck, notes, competitor links"), list, pick,
+          el("button", { type: "button", class: "ghost sm", onclick: () => pick.click() }, "Attach files")),
+        el("div", { class: "foot" }, back, el("button", { type: "button", class: "primary", onclick: next }, "Next")));
+      setTimeout(() => idea.focus(), 0);
     } else if (/figma\s+link/i.test(text)) {
       // Figma links (intake 0.2): one design system file, any number of named Design files, or none yet.
       const ds = el("input", { type: "url", placeholder: "https://www.figma.com/design/…", dir: "ltr" });
