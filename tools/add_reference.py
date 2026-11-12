@@ -2,12 +2,13 @@
 
 Usage:
   python tools/add_reference.py --company "Acme" --platform web --name "Acme - Web Design System" \
-      --figma-url https://www.figma.com/design/<KEY>/... [--default]
+      --figma-url https://www.figma.com/design/<KEY>/... [--github-url https://github.com/<org>/<repo>] [--default]
 
 Platforms: web, ios, android, cross-platform. Creates Reference_Library/<Company>/<Platform>/ with the same
 layout as the existing entries (Foundation_Skill, Component_Skills per group, data/, docs/), registers the
 original file key as off-limits (the guard hook asks before any write to it) and adds the entry to
-references.json. Refuses an id that already exists. The study itself (filling the skills and data from
+references.json. The Figma link is required (a reference without a public Figma file is not a structure
+reference); the GitHub (code) link is optional. Refuses an id that already exists. The study itself (filling the skills and data from
 Figma) follows References.md > "Adding a design system" (/study-reference-ds).
 """
 import argparse
@@ -35,6 +36,12 @@ def file_key(url):
     return m.group(1)
 
 
+def github_url(url):
+    if not re.match(r"https://github\.com/[^/\s]+/[^/\s]+", url):
+        sys.exit(f"Not a GitHub repository link: {url}")
+    return url
+
+
 def write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
@@ -47,6 +54,9 @@ def main():
     p.add_argument("--platform", required=True, choices=list(PLATFORM_DIR))
     p.add_argument("--name", required=True, help="Figma file name, shown to users in the intake menu")
     p.add_argument("--figma-url", required=True)
+    p.add_argument("--github-url", help="optional code repo: exact token values, prop names, states, accessibility")
+    p.add_argument("--source", choices=["figma", "built-from-code"], default="figma",
+                   help="built-from-code: the Figma file was built by us from the code, not the original team's")
     p.add_argument("--default", action="store_true", help="make it the platform's default reference")
     a = p.parse_args()
 
@@ -56,6 +66,7 @@ def main():
     if any(e["id"] == eid for e in refs["entries"]):
         sys.exit(f"Entry {eid} already exists in references.json")
     key = file_key(a.figma_url)
+    gh = github_url(a.github_url) if a.github_url else None
     company_dir = re.sub(r"[^A-Za-z0-9]+", "_", a.company).strip("_")
     folder = f"Reference_Library/{company_dir}/{PLATFORM_DIR[a.platform]}"
     base = ROOT / folder
@@ -89,7 +100,8 @@ def main():
 
     refs["entries"].append({
         "id": eid, "company": a.company, "name": a.name, "platform": a.platform, "folder": folder,
-        "figma_file_key": key, "figma_url": a.figma_url, "storybook": None, "status": "studying",
+        "figma_file_key": key, "figma_url": a.figma_url, "github_url": gh, "source": a.source,
+        "storybook": None, "status": "studying",
     })
     if a.default or not refs["default"].get(a.platform):
         refs["default"][a.platform] = eid

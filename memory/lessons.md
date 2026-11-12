@@ -4,6 +4,10 @@ Every mistake Abdul reports or a check finds gets one entry here in the session 
 
 Teammates share their lessons through `/contribute` (`CONTRIBUTING.md`); an entry lands here only after Abdul accepts it, marked `(contributed by <login>)`.
 
+## A rule change missed the dashboard (2026-11-11)
+1. **The Add a reference design system dialog had no place for the GitHub link (Abdul).** The rule "Figma link required, GitHub link optional" (2026-11-10) was written into the skill, References.md, references.json and add_reference.py, but the dashboard dialog, tools/README.md, CONTRIBUTING.md, README.md, CLAUDE.md and the dashboard README still showed the old Figma-only flow.
+   Cause: the change was made where the rule lives, not everywhere it is shown or used. Rule: when a workflow rule changes, update every surface that shows or uses it (skill or command, tools, dashboard UI, docs pages, README, CONTRIBUTING, issue forms) in the same PR. Check: before calling it done, `git grep` the rule's keywords (command name, tool name, data file, the user-facing wording) and go through every hit.
+
 ## FigCli daemon restarted as administrator ignores FIGMA_FILE (2026-11-11)
 1. **After the user ran `daemon restart` in an admin window, every command went to one file.** `FIGMA_FILE="<DS file>"` returned the Design file's name, so a write meant for the DS file would have landed in the wrong file.
    Cause: a restart without `FIGMA_FILE` pins the daemon to the file in front, and Claude cannot restart an elevated daemon. Rule: when giving the user the restart command, include the file (`set FIGMA_FILE=<name>` before it), and check `figma.root.name` before every write to a second file; on a mismatch use the Desktop Bridge with `fileKey` for that file. Check: one `eval "figma.root.name"` per file before its first write.

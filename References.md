@@ -24,19 +24,30 @@ Rules:
 - You need view access to the originals to duplicate them.
 
 ## Adding a design system to the library (`/study-reference-ds`)
-Say "study this design system" with the company name, the platform(s) and the Figma link(s). One run per platform; a company with Web, iOS, Android and cross-platform files gets four entries, studied one per session (token budget). Nothing here touches the original Figma file: it is read only, and the guard hook asks before any write to it.
-1. **Register and scaffold.** `python tools/add_reference.py --company "<Company>" --platform <web|ios|android|cross-platform> --name "<Figma file name>" --figma-url <link> [--default]`. It creates `Reference_Library/<Company>/<Platform>/` (Foundation_Skill, Component_Skills for Form Elements, Navigation and Data Display, `data/`, `docs/`), marks the original file key off-limits and adds the entry to `references.json` with `status: "studying"`.
+Say "study this design system" with the company name, the platform(s) and the Figma link(s).
+
+**Figma required, code optional (Abdul, 2026-11-10):**
+- An entry needs a public Figma file; the Figma link is required. Figma gives the structure: page layout, component and variant split, properties and slots, docs, and screenshots of every variant.
+- A GitHub (code) link is optional and asked for after the Figma link. When given, it enriches the study: exact token values, prop names for the description `Code:` line, states and behavior, accessibility rules. Figma wins on structure; code wins on exact values when they differ (note each difference in `docs/decisions.md`).
+- A design system with no public Figma file is not added here as a structure reference. It can still be a code reference (`tokens.json` / `AGENTS.md` for Code first, or a source for Scenario D, Code to Design). If a Figma file is ever built from its code, its entry gets `"source": "built-from-code"`: it is our interpretation, not the original team's structure.
+ One run per platform; a company with Web, iOS, Android and cross-platform files gets four entries, studied one per session (token budget). Nothing here touches the original Figma file: it is read only, and the guard hook asks before any write to it.
+1. **Register and scaffold.** `python tools/add_reference.py --company "<Company>" --platform <web|ios|android|cross-platform> --name "<Figma file name>" --figma-url <link> [--github-url <repo link>] [--source built-from-code] [--default]`. It creates `Reference_Library/<Company>/<Platform>/` (Foundation_Skill, Component_Skills for Form Elements, Navigation and Data Display, `data/`, `docs/`), marks the original file key off-limits and adds the entry to `references.json` with `status: "studying"`.
 2. **Open the file.** The user opens it in Figma Desktop with FigCli Yolo (`FIGMA_FILE` set to its exact name) or the Desktop Bridge; confirm the file key (or, when FigCli cannot read it, the exact name) matches the entry.
-3. **Study the Setup group first:** page structure, variables (`token-extractor` -> `data/source/figma-variables.dtcg.json`, `data/source/config.json`, then `python tools/build_tokens.py <folder>`), text and effect styles, icons. Write `Foundation_Skill` (SKILL.md, references/variables.md, gaps.md).
-4. **Study each component group** (⭐Form Elements, ⭐Navigation, ⭐Data Display): every component's purpose, variants, properties, states, nesting and tier, with Light and Dark screenshots of every variant (in `ds-auditor` / `docs-writer` so images stay out of the main session). Write each Component_Skill (SKILL.md, references/components.md, gaps.md) and `data/component-registry.json`, `data/rules.json`, `data/screen-templates.json`, `docs/decisions.md`.
-5. **Compare with the platform Main Skill.** Mistakes the file makes go into its `gaps.md`; a lesson that applies to every project goes into the Main Skill (section 9 or 10) without the company name.
-6. **Ready.** Set the entry's `status` to `"ready"` (and `default` if it should be the platform default), update `memory/references.md`, log it and commit.
+3. **Code (only with a GitHub link):** read the repo's token files and component props first, so the Figma study can compare against them; it never replaces the Figma study.
+4. **Study the Setup group first:** page structure, variables (`token-extractor` -> `data/source/figma-variables.dtcg.json`, `data/source/config.json`, then `python tools/build_tokens.py <folder>`), text and effect styles, icons. Write `Foundation_Skill` (SKILL.md, references/variables.md, gaps.md).
+5. **Study each component group** (⭐Form Elements, ⭐Navigation, ⭐Data Display): every component's purpose, variants, properties, states, nesting and tier, with Light and Dark screenshots of every variant (in `ds-auditor` / `docs-writer` so images stay out of the main session). Write each Component_Skill (SKILL.md, references/components.md, gaps.md) and `data/component-registry.json`, `data/rules.json`, `data/screen-templates.json`, `docs/decisions.md`.
+6. **Compare with the platform Main Skill.** Mistakes the file makes go into its `gaps.md`; a lesson that applies to every project goes into the Main Skill (section 9 or 10) without the company name.
+7. **Ready.** Set the entry's `status` to `"ready"` (and `default` if it should be the platform default), update `memory/references.md`, log it and commit.
 
 **A user's own design system (Abdul, 2026-11-09):** a company DS that is not public is studied the same way but into `My References/<Company>/<Platform>/` with its own `My References/references.json` (git-ignored, this repo is public), never into `Reference_Library/`. Every project on that computer can use it (intake 16.2, Greenfield 3.1 / 3.2). It moves to the public library only after the user confirms it may be shared. Details: `Design_System_Intake_Skill/steps/vibe-code.md` 16.3.
 
 What users see afterwards: Greenfield 3.1 offers "Start from a reference template"; when a platform has more than one ready entry, a menu lists them by `name` with the default first (Recommended). Entries still `studying` are never offered.
 
 Rules: platforms stay independent (one entry per platform, nothing shared or merged between entries); a cross-platform entry (one shared design for Flutter / React Native custom UI) is offered when intake 1.3 picks cross-platform; never edit the original file.
+
+## Code references and the study queue (Abdul, 2026-11-10)
+- `Reference_Library/code_references.json`: a catalog of public design systems with a GitHub repo (repo links, license, platforms, whether a public Figma file exists). Not studied and never offered in the intake menus. Used for exact token values, prop names, states, accessibility and AGENTS.md ideas in Code first and Scenario D. Only `license_ok: true` repos are read for values; a brand look is never copied.
+- `Reference_Library/study_queue.md`: the systems with a public Figma file, in study order (mobile first). Abdul opens one link every day or two; Claude studies it with `/study-reference-ds` and marks the row `studied`.
 
 ## Platform quality skills (optional)
 Not Figma kits: agent skills that guide decisions (component choice, states, accessibility, polish). Values they suggest still map to the project's tokens. How each is used: section 11 of the iOS and Android Main Skills.

@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/9c5983ea-5297-472f-88c4-1dd1820ee239
 - `CLAUDE.md`: read by Claude Code automatically; tells it to start every job with the intake.
 - `Design_System_Intake_Skill/`: the entry flow (tools check, questions, path, approval checkpoints).
 - `Web_Design_System_Skill/`, `iOS_Design_System_Skill/`, `Android_Design_System_Skill/`: platform Main Skills.
-- Reference library: studied design systems the workflow learns from (foundations, components, known gaps), one folder per company and platform, indexed in `references.json`. Today it holds one company's Web, iOS and Android systems; add others the same way (`References.md`).
+- Reference library: studied design systems the workflow learns from (foundations, components, known gaps), one folder per company and platform, indexed in `references.json`. Today it holds one company's Web, iOS and Android systems; add others the same way (`References.md`; a public Figma file is required, a GitHub link optional). `Reference_Library/code_references.json` catalogs public design systems with code only, and `Reference_Library/study_queue.md` lists the Figma kits to study next.
 - `*/data/`: JSON knowledge base per DS (tokens, component registry, rules, screen templates) and `*/docs/decisions.md`.
 - `tools/`: `build_tokens.py` (Figma export to tokens.json), `recolor.py` (change a color and regenerate all its shades), `tokens_to_css.py` (tokens.json to Storybook CSS variables) and `storybook_parity.py` (checks Storybook names match Figma). Needs Python 3.
 - `Storybook_Design_System_Skill/`: optional live Storybook for developers (`/storybook-design-system`).
