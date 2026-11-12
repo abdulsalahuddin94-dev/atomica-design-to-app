@@ -43,7 +43,7 @@ It checks which Figma tools are installed first (FigCli = figma-cli, Yolo mode R
 | `Android_Design_System_Skill/SKILL.md` | Android systems (Material Design 3) |
 | `Storybook_Design_System_Skill/SKILL.md` | Optional: live Storybook (React + Storybook MCP) from a finished DS; names match Figma exactly |
 
-Before any script that writes to Figma (FigCli `eval`, `figma_execute`, `use_figma`), load `.claude/skills/figma-plugin-api-rules/` (then only the topic file that matches the code) and end the script with `return await DS.readBack([...])`. Unbound values: `.claude/skills/fix-variable-bindings/`. Guides adopted from public MIT skill repos (readiness and drift scores, UX rules for screens, usability review, deprecation, decision records): `Workflow_References/README.md`.
+Before any script that writes to Figma (FigCli `eval`, `figma_execute`, `use_figma`), load `.claude/skills/figma-plugin-api-rules/` (then only the topic file that matches the code) and end the script with `return await DS.readBack([...])`. Unbound values: `.claude/skills/fix-variable-bindings/`. Guides adopted from public MIT skill repos (readiness and drift scores, UX rules for screens, usability review, deprecation, decision records): `Workflow_References/README.md`. On request only: Review design and Challenge the plan (`Workflow_References/ai-review/README.md`).
 
 Knowledge base (exact values, read these instead of re-deriving or re-reading Figma): each DS folder has `data/tokens.json`, `data/component-registry.json`, `data/rules.json`, `data/screen-templates.json` and `docs/decisions.md`. Tools in `tools/` (`build_tokens.py`, `recolor.py`, `lint_token_names.cjs`, `design_md.py`).
 

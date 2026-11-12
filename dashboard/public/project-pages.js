@@ -312,12 +312,17 @@ async function drawDesign(main, p) {
   // Version history (code projects, tools/versions.cjs): Lovable-like History / Bookmarks panel over the chat.
   const hist = { open: false, tab: "history", data: null, ask: null, busy: false };
   const histBtn = el("button", { class: "ghost sm ws-histbtn", type: "button", hidden: true, "aria-pressed": "false", title: "Version history", "aria-label": "Version history", onclick: () => toggleHistory() }, icon("i-clock"), "History");
+  // Audit (on request, ai-review.js): goes to this project's Design chat; the layout rule (Figma first: chat only) is untouched.
+  const auditBtn = el("button", { class: "ghost sm ws-histbtn", type: "button", title: "Review the design or challenge the plan", onclick: () => {
+    if (!st.designMode) { toast("Pick Code first or Figma first above, then run the audit."); return; }
+    openAuditDialog(p, ({ short, full, images }) => sendToDesign(short, full, screenName(), images).catch(showError));
+  } }, "Audit");
   const histPanel = el("section", { class: "ws-hist", "aria-label": "Version history", hidden: true });
   const chatBody = el("div", { class: "ws-chat" });
   const chatCol = el("section", { class: "ws-col", "aria-label": "Design conversation" },
     el("div", { class: "ws-head" },
       el("div", { class: "crumbs" }, el("a", { href: "#/projects" }, "Projects"), ` / ${p.title}`),
-      el("div", { class: "row" }, el("h1", {}, "Design"), modeSeg, histBtn),
+      el("div", { class: "row" }, el("h1", {}, "Design"), modeSeg, histBtn, auditBtn),
       el("p", { class: "muted small" }, "Only design-system components and tokens. A missing component becomes a DS gap first.")),
     histPanel, chatBody);
 
@@ -689,15 +694,15 @@ async function drawDesign(main, p) {
   }
   // Sends a task to the Design chat: a short visible line, the full instructions as hidden context. Returns "queued"
   // (Claude is busy and takes it next) or "in-progress".
-  async function sendToDesign(short, hidden, screenName) {
+  async function sendToDesign(short, hidden, screenName, images = []) {
     let live = null;
     if (sessionId()) live = (await api("/api/sessions")).live.find((x) => x.id === sessionId());
     if (!live && sessionId()) { await openChat(); live = (await api("/api/sessions")).live.find((x) => x.id === sessionId()); }
     if (live) {
-      await api(`/api/sessions/${live.id}/message`, { text: short, context: hidden });
+      await api(`/api/sessions/${live.id}/message`, { text: short, context: hidden, images });
       return live.busy ? "queued" : "in-progress";
     }
-    const s = await api("/api/sessions", { prompt: short, context: `${DESIGN_CONTEXT(p.name, st.designMode || "code-first", screenName || "", view.where === "local" ? "local preview" : "live link")}\n\n${hidden}`, project: p.name, title: `Design: ${p.title}` });
+    const s = await api("/api/sessions", { prompt: short, context: `${DESIGN_CONTEXT(p.name, st.designMode || "code-first", screenName || "", view.where === "local" ? "local preview" : "live link")}\n\n${hidden}`, images, project: p.name, title: `Design: ${p.title}` });
     writeStore(designKey(p.name), { id: s.id, claudeSessionId: s.claudeSessionId || null });
     mountChat(s.id);
     return "in-progress";

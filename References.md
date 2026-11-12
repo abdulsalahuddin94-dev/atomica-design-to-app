@@ -51,6 +51,7 @@ Parts of public MIT agent-skill repos, adapted and kept in this repo (no install
 - murphytrueman/design-system-ops: https://github.com/murphytrueman/design-system-ops (deprecation, decision records, AI readiness)
 - MUZEEBURRAHAMAN/design-system-skills: https://github.com/MUZEEBURRAHAMAN/design-system-skills (DESIGN.md, drift score)
 - michaelwnau/figma-design-system-engineering: https://github.com/michaelwnau/figma-design-system-engineering (token name linter)
+- alfaris/Design-AI-Skills: https://github.com/alfaris/Design-AI-Skills (CC BY 4.0, (c) 2026 Ahmed Faris / فارس المجرة; design-audit-panel and devils-advocate-and-convincer, on request only, `Workflow_References/ai-review/README.md`)
 - Seen but not adopted: senlindesign/claude2figma (its post-write hook only echoes a reminder; our `DS.readBack` check replaces it), lifesized/figma-design-sync and christinevall/skills (code to Figma; our Figma is the source).
 
 ## Figma tooling
