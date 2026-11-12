@@ -1097,6 +1097,26 @@
       "notes": "Use is restricted to French State websites; study only, never copy its look."
     },
     {
+      "id": "nl-design-system",
+      "name": "NL Design System",
+      "owner": "Netherlands, run by ICTU",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/nl-design-system/candidate",
+        "https://github.com/nl-design-system/themes",
+        "https://github.com/nl-design-system/utrecht"
+      ],
+      "license": "EUPL-1.2",
+      "license_ok": false,
+      "has_public_figma": false,
+      "docs": "https://nldesignsystem.nl",
+      "oohdls": "https://oohdls.com/systems/nl-design-system-netherlands-run-by-ictu",
+      "status": "active",
+      "notes": "Shared components, each organization themes them with design tokens (themes repo). EUPL-1.2 is copyleft: read for ideas and token structure only."
+    },
+    {
       "id": "sgds",
       "name": "Singapore Government Design System / SGDS",
       "owner": "GovTech Singapore",
