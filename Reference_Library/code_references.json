@@ -1,5 +1,5 @@
 {
-  "$comment": "Code references: design systems with a public GitHub repo, catalogued but NOT studied. Not structure references (those are in references.json and need a public Figma file). Used for exact token values, prop names, states, accessibility and AGENTS.md ideas, in Code first and Scenario D (Code to Design). license_ok: true = permissive (MIT, Apache-2.0, BSD, ISC, MPL-2.0, CC0, OFL), false = copyleft, custom or restricted, null = no license found. Read ideas and values from these repos; never copy code or a brand look. How it is used: References.md > Code references.",
+  "$comment": "Code references: design systems with a public GitHub repo, catalogued but NOT studied. Not structure references (those are in references.json and need a public Figma file). Used for exact token values, prop names, states, accessibility and AGENTS.md ideas, in Code first and Scenario D (Code to Design). has_public_figma: true (official and free, in study_queue.md), false, \"unofficial\" (community kits only), \"paid\" (official kit is paid) or \"unknown\". oohdls is null for libraries added from the AI-ready shortlist. license_ok: true = permissive (MIT, Apache-2.0, BSD, ISC, MPL-2.0, CC0, OFL), false = copyleft, custom or restricted, null = no license found. Read ideas and values from these repos; never copy code or a brand look. How it is used: References.md > Code references.",
   "checked": "2026-11-10",
   "source": "oohdls archive (October 2026 edition), each repo checked on GitHub",
   "skipped": {
@@ -1217,6 +1217,140 @@
       "docs": "https://baseweb.design",
       "oohdls": "https://oohdls.com/systems/base-web-uber",
       "status": "limited"
+    },
+    {
+      "id": "shadcn-ui",
+      "name": "shadcn/ui",
+      "owner": "shadcn",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/shadcn-ui/ui"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": "unofficial",
+      "docs": "https://ui.shadcn.com",
+      "oohdls": null,
+      "status": "active",
+      "notes": "AI: official MCP server (shadcn CLI, also a Registry MCP), agent Skills, llms.txt. Figma: no kit by the project; its docs list community kits, free and paid. Shortlist: state-of-ai-in-design-systems.netlify.app; AI features checked in the official docs 2026-11-12.",
+      "source_list": "ai-ready-libraries"
+    },
+    {
+      "id": "chakra-ui",
+      "name": "Chakra UI",
+      "owner": "Chakra UI",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/chakra-ui/chakra-ui"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://chakra-ui.com",
+      "oohdls": null,
+      "status": "active",
+      "notes": "AI: official MCP server (@chakra-ui/react-mcp; Pro tools need a paid key), Agent Skills, llms.txt and llms-full.txt. Figma: official free v3 kit (in the study queue). Shortlist: state-of-ai-in-design-systems.netlify.app; AI features checked in the official docs 2026-11-12.",
+      "source_list": "ai-ready-libraries"
+    },
+    {
+      "id": "mantine",
+      "name": "Mantine",
+      "owner": "Mantine",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/mantinedev/mantine"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": "unofficial",
+      "docs": "https://mantine.dev",
+      "oohdls": null,
+      "status": "active",
+      "notes": "AI: official MCP server (@mantine/mcp-server), llms.txt and llms-full.txt. Figma: the docs say there are no official Figma files, only community kits. Shortlist: state-of-ai-in-design-systems.netlify.app; AI features checked in the official docs 2026-11-12.",
+      "source_list": "ai-ready-libraries"
+    },
+    {
+      "id": "material-ui",
+      "name": "Material UI (MUI)",
+      "owner": "MUI",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/mui/material-ui"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": "paid",
+      "docs": "https://mui.com/material-ui/",
+      "oohdls": null,
+      "status": "active",
+      "notes": "AI: official MCP server (@mui/mcp), AGENTS.md and Claude plugin files in the repo. Figma: official design kits are sold in the MUI Store; the Material UI Sync Figma plugin (tokens to a theme file) is free. Shortlist: state-of-ai-in-design-systems.netlify.app; AI features checked in the official docs 2026-11-12.",
+      "source_list": "ai-ready-libraries"
+    },
+    {
+      "id": "heroui",
+      "name": "HeroUI",
+      "owner": "HeroUI",
+      "platforms": [
+        "web",
+        "react-native"
+      ],
+      "github": [
+        "https://github.com/heroui-inc/heroui"
+      ],
+      "license": "Apache-2.0",
+      "license_ok": true,
+      "has_public_figma": "unknown",
+      "docs": "https://heroui.com",
+      "oohdls": null,
+      "status": "active",
+      "notes": "AI: official MCP servers (React, Native, migration), AGENTS.md and Agent Skills pages, llms.txt. HeroUI Native is the official React Native library. Figma: no kit found in the official docs. Shortlist: state-of-ai-in-design-systems.netlify.app; AI features checked in the official docs 2026-11-12.",
+      "source_list": "ai-ready-libraries"
+    },
+    {
+      "id": "daisyui",
+      "name": "daisyUI",
+      "owner": "daisyUI",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/saadeghi/daisyui"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": "unknown",
+      "docs": "https://daisyui.com",
+      "oohdls": null,
+      "status": "active",
+      "notes": "AI: official agent skill served as llms.txt (Tailwind CSS component classes). Figma: no kit found in the official docs. Shortlist: state-of-ai-in-design-systems.netlify.app; AI features checked in the official docs 2026-11-12.",
+      "source_list": "ai-ready-libraries"
+    },
+    {
+      "id": "nuxt-ui",
+      "name": "Nuxt UI",
+      "owner": "Nuxt",
+      "platforms": [
+        "web"
+      ],
+      "github": [
+        "https://github.com/nuxt/ui"
+      ],
+      "license": "MIT",
+      "license_ok": true,
+      "has_public_figma": true,
+      "docs": "https://ui.nuxt.com",
+      "oohdls": null,
+      "status": "active",
+      "notes": "AI: official MCP server (https://ui.nuxt.com/mcp), agent skill (/.well-known/skills/), llms.txt and llms-full.txt. Figma: official free kit (in the study queue). Vue / Nuxt. Shortlist: state-of-ai-in-design-systems.netlify.app; AI features checked in the official docs 2026-11-12.",
+      "source_list": "ai-ready-libraries"
     }
   ]
 }

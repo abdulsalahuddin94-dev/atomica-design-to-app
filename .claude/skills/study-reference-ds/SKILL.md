@@ -8,3 +8,5 @@ Read and follow `References.md` > "Adding a design system to the library" in the
 Ask for the company name, the platform (Ask (choice): Web / iOS / Android / Cross-platform; later menus in the run also end with "Back", Intake section 0) and the Figma link if they were not given. One platform per run.
 
 The Figma link is required: a design system with no public Figma file is not added as a structure reference (code reference only; `References.md`). After the Figma link, ask once for an optional GitHub (code) link (typed; "No code link" via the menu): Figma wins on structure, code wins on exact values.
+
+When the study is done (entry `status: "ready"`): if the system has a row in `Reference_Library/study_queue.md`, set its Status to `studied <YYYY-MM-DD>` in the same commit. If it is also in `Reference_Library/code_references.json`, leave that entry as it is (it still serves Code first and Scenario D).
