@@ -1297,13 +1297,24 @@ function openFigmaTool(key, { project, onChange } = {}) {
     const t = figmaToolsCache.tools[key];
     status.replaceChildren(el("span", { class: `dot ${t.checking ? "wait" : t.connected ? "good" : "bad"}` }), el("b", {}, t.checking ? "Checking…" : t.connected ? "Connected" : "Needs setup"), el("span", { class: "why" }, t.reason));
     setup.hidden = !!t.connected;
-    setup.textContent = key === "figcli" ? (t.installed ? "Connect as administrator" : "Set up FigCli") : key === "bridge" ? (t.installed ? "Show the plugin steps" : "Add the Desktop Bridge") : t.configured ? "Sign in with Figma" : "Add and sign in with Figma";
+    setup.textContent = key === "figcli" ? (t.installed ? "Repair as administrator" : "Set up FigCli") : key === "bridge" ? (t.installed ? "Show the plugin steps" : "Add the Desktop Bridge") : t.configured ? "Sign in with Figma" : "Add and sign in with Figma";
     useBtn.textContent = figmaToolsCache.default === key ? "Default on this computer" : "Use this tool";
     useBtn.disabled = figmaToolsCache.default === key;
   };
   const connect = el("button", { class: "ghost sm", type: "button", onclick: async () => {
     connect.disabled = true; connect.textContent = "Checking…";
-    try { const r = await api("/api/figma-tools/connect", { tool: key }); figmaToolsCache = r; drawStatus(); onChange?.(); toast(r.result.connected ? `${name}: Connected.` : `${name}: needs setup. ${r.result.reason}`); }
+    try {
+      let r = await api("/api/figma-tools/connect", { tool: key });
+      // FigCli: the repair may need Figma closed and reopened with its port; that is the user's call.
+      if (!r.result.connected && r.repair?.needsRestart && confirm(`${r.repair.confirm}
+
+Close and reopen Figma now?`)) {
+        connect.textContent = "Reopening Figma…";
+        r = await api("/api/figma-tools/connect", { tool: key, restartFigma: true });
+      }
+      figmaToolsCache = r; drawStatus(); onChange?.();
+      toast(r.result.connected ? `${name}: Connected.` : `${name}: needs setup. ${r.result.reason}`);
+    }
     catch (e) { showError(e); }
     connect.disabled = false; connect.textContent = "Connect";
   } }, "Connect");
@@ -1330,7 +1341,7 @@ function openFigmaTool(key, { project, onChange } = {}) {
       const j = await api(`/api/figma-tools/job?name=${job}`).catch(() => null);
       if (!j) return;
       log.textContent = j.lines.join("\n"); log.scrollTop = log.scrollHeight;
-      if (j.done) { extra.append(el("p", { class: `small ${j.ok ? "" : "err"}` }, j.ok ? "FigCli is installed. Now press Connect as administrator." : "The setup stopped; see the log above.")); await getFigmaTools(); drawStatus(); onChange?.(); return; }
+      if (j.done) { extra.append(el("p", { class: `small ${j.ok ? "" : "err"}` }, j.ok ? "FigCli is installed. Now press Connect." : "The setup stopped; see the log above.")); await getFigmaTools(); drawStatus(); onChange?.(); return; }
     }
   }
   const useBtn = el("button", { class: "ghost sm", type: "button", onclick: async () => {
@@ -1349,7 +1360,7 @@ function openFigmaTool(key, { project, onChange } = {}) {
     el("table", { class: "fcompare" },
       el("thead", {}, el("tr", {}, el("th", {}, ""), ...["Official MCP", "Desktop Bridge", "FigCli"].map((h, i) => el("th", { class: i + 1 === col ? "on" : null }, h)))),
       el("tbody", {}, FIGMA_COMPARE.map((r) => el("tr", {}, el("th", {}, r[0]), ...r.slice(1).map((v, i) => el("td", { class: i + 1 === col ? "on" : null }, v)))))),
-    key === "figcli" ? el("p", { class: "muted small" }, "The administrator step patches Figma Desktop so it opens a local debugging port (9222, no password, this computer only). You confirm it in a Windows prompt; Atomica never runs it on its own. Repeat it after a Figma update.") : null,
+    key === "figcli" ? el("p", { class: "muted small" }, "Connect patches the Figma version that runs so it opens a local debugging port (9222, no password, this computer only), frees the port if another program holds it, reopens Figma after you confirm and restarts the FigCli daemon. It runs only when you press it. Use Repair as administrator only when Connect says it could not write Figma's files.") : null,
     extra,
     el("footer", {}, connect, setup, el("span", { style: "flex:1" }), useProject, useBtn));
   drawStatus();
