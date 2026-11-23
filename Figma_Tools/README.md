@@ -50,7 +50,7 @@ Claude only installs after you say yes, and you can do it in the same session as
 3. Test it: `node src/index.js eval "figma.root.name"` prints the file name.
 4. Figma can stay minimized while you work; there is no plugin to keep open.
 
-**After a Figma update:** `node src/index.js connect` again (as administrator), then `node src/index.js daemon restart`.
+**After a Figma update:** press **Connect** on the FigCli card in the Atomica dashboard, or run `node tools/figcli_doctor.cjs --fix --restart-figma --figcli <figma-cli folder>` at the workflow Root in a normal terminal (no administrator needed). Plain `node src/index.js connect` can patch the old version folder after an update (it sorts 126.11.9 above 126.11.11).
 
 **Several files open: always say which file.** Each command takes the target file from the `FIGMA_FILE` environment variable. Without it, the command goes to the **last connected file**, not the file on your screen. So:
 - Set `FIGMA_FILE` on **every** command whenever more than one file is open.

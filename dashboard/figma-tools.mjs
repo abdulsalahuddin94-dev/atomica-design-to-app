@@ -8,6 +8,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+
+// The FigCli connection doctor (tools/figcli_doctor.cjs): why port 9222 is closed and the repair, run on the user's click.
+const doctor = (root) => createRequire(import.meta.url)(path.join(root, "tools", "figcli_doctor.cjs"));
 
 const STATE = path.join(os.homedir(), ".atomica");
 const DEFAULT_FILE = path.join(STATE, "figma-tool.json");
@@ -81,7 +85,7 @@ export async function figmaToolsState(root, { fresh } = {}) {
   const tools = {
     figcli: {
       installed: !!fc.dir, version: fc.version, dir: fc.dir, connected: port,
-      reason: port ? "Connected: Figma answers on port 9222." : !fc.dir ? "FigCli is not installed on this computer." : running ? "Figma is open, but not connected (port 9222 closed). After a Figma update, connect again as administrator." : "Figma Desktop is not running.",
+      reason: port ? "Connected: Figma answers on port 9222." : !fc.dir ? "FigCli is not installed on this computer." : running ? "Figma is open, but not connected (port 9222 closed). Press Connect: Atomica finds the cause and repairs it." : "Figma Desktop is not running.",
     },
     bridge: {
       installed: fc.bridgeRegistered, manifest: fs.existsSync(manifest) ? manifest : null, connected: bridgeOn,
@@ -130,8 +134,18 @@ export async function handleFigmaTools(req, res, url, { send, readBody, runInTer
   const b = req.method === "POST" ? await readBody(req) : {};
   if (req.method === "POST" && p === "/api/figma-tools/connect") {
     if (!TOOLS.includes(b.tool)) { send(res, 400, { error: "unknown tool" }); return true; }
-    const st = await figmaToolsState(root, { fresh: b.tool === "official" });
-    send(res, 200, { ...st, tool: b.tool, result: st.tools[b.tool] });
+    let st = await figmaToolsState(root, { fresh: b.tool === "official" });
+    // FigCli not connected: the doctor finds the cause and repairs it (patch the Figma version that runs, free the
+    // port, reopen Figma with the flag after the user confirms, restart the daemon). Its message replaces the reason.
+    let repair = null;
+    if (b.tool === "figcli" && st.tools.figcli.installed && !st.tools.figcli.connected) {
+      try {
+        repair = await doctor(root).fix({ restartFigma: !!b.restartFigma, figcliDir: st.tools.figcli.dir });
+        st = await figmaToolsState(root);
+        if (!st.tools.figcli.connected) st.tools.figcli.reason = [...(repair.steps || []), repair.needsUser || repair.message || repair.causes.map((c) => c.message).join(" ")].filter(Boolean).join(" ");
+      } catch (e) { repair = { error: e.message }; }
+    }
+    send(res, 200, { ...st, tool: b.tool, result: st.tools[b.tool], repair });
     return true;
   }
   if (req.method === "POST" && p === "/api/figma-tools/setup") {
@@ -149,7 +163,9 @@ export async function handleFigmaTools(req, res, url, { send, readBody, runInTer
         return true;
       }
       if (process.platform !== "win32") { send(res, 200, { message: `In a terminal in ${t.dir}: sudo node src/index.js connect, then node src/index.js daemon restart` }); return true; }
-      const ok = elevated(t.dir, ["node src/index.js connect", "node src/index.js daemon restart"]);
+      // Only when the doctor could not write Figma's files (an install outside %LOCALAPPDATA%): the administrator
+      // window. It never patches by version name again (figma-cli sorts 126.11.9 above 126.11.11), it runs the doctor.
+      const ok = elevated(t.dir, [`node '${path.join(root, "tools", "figcli_doctor.cjs").replace(/'/g, "''")}' --fix --figcli '${t.dir.replace(/'/g, "''")}'`]);
       send(res, ok ? 200 : 400, ok ? { message: "Confirm the Windows prompt (Run as administrator). The window patches Figma, reopens it with port 9222 and restarts the daemon; then press Connect." } : { error: "Could not open the administrator window." });
       return true;
     }
