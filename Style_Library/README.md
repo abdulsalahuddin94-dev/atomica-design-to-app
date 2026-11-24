@@ -18,7 +18,7 @@ A project picks at most one style. Its components are still built on the platfor
 ## How the intake uses a style
 
 Greenfield only (`Design_System_Intake_Skill/steps/style-library.md`, intake 0.3e). Brownfield, Scenario C and Code to Design never ask: their look comes from the source.
-1. "Visual direction?" -> "My brand files" / "Pick a style from the library" / "No style, use defaults".
+1. "Visual direction?" -> "My brand files" (when `Inputs/Brand/` has files) / "Research and suggest a direction" (when it is empty: light research on the competitors, then 2 to 3 suggested styles, each with a brand color and the reason) / "Pick a style from the library" / "No style, use defaults".
 2. Pick -> a category, then a style in it. The dashboard's **Style library** page can preselect one ("Use for a new project").
 3. The style's values are mapped into our layers: its hex colors -> Primitives (ramps from `tools/new_foundation.py`) -> our Semantic layer, contrast checked; its font prefills 0.6 (a proprietary font is replaced by the free substitute the file names); radius, spacing and elevation are snapped to our scales.
 4. All prefilled values are shown once with "Use these (Recommended)" / "Change something", and the choice is recorded in `Project_Brief.md` and `status.json > style`.
