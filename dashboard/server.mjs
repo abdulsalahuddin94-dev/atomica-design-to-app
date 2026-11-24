@@ -1255,6 +1255,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
   try {
+    if (req.method === "GET" && p === "/api/whoami") return send(res, 200, { app: "atomica-dashboard", root: ROOT });
     if (req.method === "GET" && p === "/api/projects") return send(res, 200, { projects: listProjects() });
     if (p.startsWith("/api/figma-tools") && await handleFigmaTools(req, res, url, { send, readBody, runInTerminal, root: ROOT, projectDir })) return;
     if (p.startsWith("/api/project/") && await handleProjectApi(req, res, url, { send, projectDir, readBody, root: ROOT, integrations })) return;
@@ -1365,22 +1366,50 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.on("error", (err) => {
+// Two copies of the workflow on one computer (a test clone next to the Root) each get their own dashboard: when the
+// port is taken, ask the dashboard there which folder it runs. The same folder -> open it and stop; another folder
+// (or an older dashboard that cannot say) -> take the next free port, so this window always shows this folder.
+let port = PORT;
+async function whoIsOn(p) {
+  try {
+    const r = await fetch(`http://${HOST}:${p}/api/whoami`, { signal: AbortSignal.timeout(1500) });
+    const j = r.ok ? await r.json() : null;
+    return j && j.app === "atomica-dashboard" ? j.root : "";
+  } catch { return ""; }
+}
+function openBrowser(url) {
+  const opener = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
+  try { spawn(opener[0], opener[1], { detached: true, stdio: "ignore" }).unref(); } catch {}
+}
+
+server.on("error", async (err) => {
   if (err.code === "EADDRINUSE") {
-    console.log(`The dashboard is already running: http://localhost:${PORT}`);
-    process.exit(0);
+    const root = await whoIsOn(port);
+    if (root && path.resolve(root).toLowerCase() === ROOT.toLowerCase()) {
+      console.log(`The dashboard for this folder is already running: http://localhost:${port}`);
+      if (process.argv.includes("--open")) openBrowser(`http://localhost:${port}`);
+      process.exit(0);
+    }
+    console.log(`Port ${port} is used by ${root ? `the dashboard of another folder (${root})` : "another program or an older dashboard"}.`);
+    if (port >= PORT + 10) { console.log("No free port found. Close the other dashboard and try again."); process.exit(1); }
+    port += 1;
+    return server.listen(port, HOST);
   }
   throw err;
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`\n  Atomica Studio - dashboard\n  http://localhost:${PORT}\n\n  Keep this window open while you use it. Close it to stop.\n`);
-  if (process.argv.includes("--open")) {
-    const url = `http://localhost:${PORT}`;
-    const opener = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
-    try { spawn(opener[0], opener[1], { detached: true, stdio: "ignore" }).unref(); } catch {}
-  }
+server.on("listening", () => {
+  console.log(`
+  Atomica Studio - dashboard
+  Folder: ${ROOT}
+  http://localhost:${port}
+
+  Keep this window open while you use it. Close it to stop.
+`);
+  if (process.argv.includes("--open")) openBrowser(`http://localhost:${port}`);
 });
+
+server.listen(port, HOST);
 
 // Closing the dashboard window saves what each conversation window showed, so Continue brings it back.
 process.on("exit", () => { for (const s of sessions.values()) if (s.saveTimer) saveLog(s); });
