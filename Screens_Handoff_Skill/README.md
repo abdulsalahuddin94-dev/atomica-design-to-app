@@ -1,6 +1,6 @@
 # Screens Handoff Skill (trial: The Live Prototype)
 
-Status: **trial, not part of the workflow yet**. Nothing here is loaded by the intake, the Main Skills or the dashboard until Abdul approves the trial.
+Status: **part of the workflow** (Live prototype stage, merged 2026-11-04). The intake runs it after the Screens checkpoint of an All the way project through `Design_System_Intake_Skill/steps/live-prototype.md` (section 18), which gives the order; this README holds the tool details and the trial results (Music App).
 
 Goal: turn the finished screens of a Design file into a live, clickable prototype that a developer can open, built only from the project's own design system (its tokens and its Storybook React components), and carry review comments back into Figma.
 
