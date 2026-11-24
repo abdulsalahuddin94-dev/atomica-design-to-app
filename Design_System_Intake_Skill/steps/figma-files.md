@@ -12,6 +12,13 @@ Each project has **one Design System file** and a **list of Design files** (scre
 - The file key is the part of the Figma URL after `/design/` or `/file/`. Ask for the links once (question 0.2); later sessions read them from `status.json`.
 - `layout` (Scenario C, section 7g): `separate` (default, a DS library file plus Design files) or `single-file` (the DS lives inside the Design file: `design_system` and `design_files[0]` share one `file_key`, `ds_pages` lists the DS page names, and `library_updates_accepted` is `null`).
 
+**7c.0 Files not created yet (Abdul, 2026-11-24).** When `status.json > figma.design_system` is `null` (0.2 answered None yet) and the next step writes to Figma (the first Foundation step; the first screen for the Design file; Brownfield and Scenario C always have files), guide the user before anything else, one message, click by click, with the exact names:
+1. "Open Figma Desktop (not the browser). On the home screen press **+ Create** (top right; older versions: **New design file**), then **Design file**."
+2. "Double-click the name **Untitled** at the top and type **<Project> Design System**, then Enter." For a project with screens, repeat for a second file named **<Project>** (the Design file). Starter plan with `layout = single-file`: one file only, named **<Project>**.
+3. "In each file press **Share** (top right), then **Copy link**, and paste the links here." (typed; the dashboard shows the same link fields as 0.2).
+4. Keep the DS file as the front tab.
+Then register the links as in 0.2 (name exactly as typed, file key from the link), run the file check below and continue. Never create files through another tool on the user's account without asking.
+
 **Single-file projects (`layout` = `single-file`):** the publish steps below do not apply. After a DS change, ask Abdul to save a Figma version named after the step (Ask (choice): "Is the version saved?" "Done, saved" / "Not yet") and log `Version saved: <name>` in `CHANGELOG.md`. The file check runs once for both roles; DS work writes only on `ds_pages`, screen work only on the other pages, and step 4 (library enabled) is skipped.
 
 **After any change to the DS file** (variables, styles, components):

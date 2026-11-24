@@ -33,6 +33,7 @@ Part of `Design_System_Intake_Skill` (sections keep their original numbers, so "
       ├─ data\                                 (tokens.json, component-registry.json, rules.json, screen-templates.json, source\, recolor\)
       ├─ docs\decisions.md                     (why each decision was made; recolor log)
       ├─ audits\                              (ds-auditor reports)
+      ├─ Screenshots\                         (one folder per phase, 1-Intake ... 7-Storybook: the checkpoint screenshots, copied there by Claude, and any the user takes; for reviews and presentations)
       ├─ storybook\                           (optional live Storybook, section 12)
       ├─ Foundation_Skill\SKILL.md + references\ (variables.md, gaps.md, screens\)
       └─ Component_Skills\
