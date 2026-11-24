@@ -4,7 +4,7 @@ Compares what the running app renders (tools/source_dump.js) with what the Figma
 (tools/figma_text_dump.figma.js), number by number, instead of judging two screenshots by eye.
 
 Usage:
-  python tools/fidelity_diff.py <source.json> <figma.json> [--out report.md] [--pos 4] [--de 3] [--figma-x0 256] [--figma-y0 60] [--source-y0 N] [--bg #12131a]
+  python tools/fidelity_diff.py <source.json> <figma.json> [--out report.md] [--pos 4] [--de 3] [--figma-x0 256] [--figma-y0 60] [--source-y0 N] [--bg #12131a] [--accept accepted.json]
 
 Checks, per text matched by its content (nearest position when a text repeats):
   - font size (> 0.5 px), weight (different weight class), color (OKLab deltaE > --de, default 3),
@@ -14,8 +14,22 @@ Checks, per text matched by its content (nearest position when a text repeats):
 Per box with a background (best overlap with a Figma frame): background color, border color, radius.
 Exit code 0 always; the report's "Open differences" count must be 0 (or each one explained) before a
 screen is called done.
+
+Verdict and coverage (idea from its-magdy/design-twin, MIT; our own code): nothing left unmeasured
+counts as a match.
+  - Verdict: Fail (an open size, weight, color, missing text or missing background), Incomplete (only
+    position, line height, box size, radius or border open, or something could not be compared),
+    Pass with accepted differences, or Pass.
+  - "Not compared" lists source boxes with no Figma frame on top of them and texts the dump gave no
+    size or color for, so a gap in the measurement is never read as "no difference".
+  - --accept <file.json>: differences the user accepted, each with who and why:
+      {"accepted": [{"key": "text:save changes", "reason": "...", "by": "Abdul", "date": "2026-11-24"}]}
+    The key of every difference is printed in the report. An entry without reason or by is ignored,
+    and an entry that matches nothing is listed as stale. Accepted ones are written "- Explained: N",
+    which the done gate (.claude/hooks/session_gate.cjs) does not count as open.
 """
 import json
+import os
 import math
 import re
 import sys
@@ -59,7 +73,7 @@ def delta_e(a, b, bg=None):
 
 
 def norm(t):
-    return re.sub(r"\s+", " ", (t or "").replace("→", "->")).strip().lower()
+    return re.sub(r"\s+", " ", (t or "").replace("â†’", "->")).strip().lower()
 
 
 def weight_class(w):
@@ -76,12 +90,30 @@ def iou(a, b):
     return inter / union if union else 0
 
 
+HIGH = ("size", "weight", "color", "background")  # kinds that make the verdict Fail
+
+
+def load_accepted(path):
+    """Accepted differences by key; entries without a reason or a name are not accepted."""
+    if not path:
+        return {}, []
+    data = json.load(open(path, encoding="utf-8-sig"))
+    good, bad = {}, []
+    for e in data.get("accepted", []) if isinstance(data, dict) else data:
+        if e.get("key") and str(e.get("reason", "")).strip() and str(e.get("by", "")).strip():
+            good[e["key"]] = e
+        else:
+            bad.append(e.get("key") or "(no key)")
+    return good, bad
+
+
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
         return 0
-    src, fig = (json.load(open(p, encoding="utf-8")) for p in argv[1:3])
+    src, fig = (json.load(open(p, encoding="utf-8-sig")) for p in argv[1:3])
     out = argv[argv.index("--out") + 1] if "--out" in argv else None
+    accepted, bad_accept = load_accepted(argv[argv.index("--accept") + 1] if "--accept" in argv else None)
     global BG
     if "--bg" in argv:
         BG = parse_hex(argv[argv.index("--bg") + 1])[0] or BG
@@ -107,7 +139,7 @@ def main(argv):
     offs.sort(key=lambda o: o[0]); mx = offs[len(offs) // 2][0] if offs else 0
     offs.sort(key=lambda o: o[1]); my = offs[len(offs) // 2][1] if offs else 0
     used = set()
-    rows, missing = [], []
+    rows, missing, unmeasured = [], [], []
     for s in src["texts"]:
         key = norm(s["text"])
         cands = [(i, f) for i, f in enumerate(ftexts) if i not in used and norm(f["text"]) == key]
@@ -133,19 +165,26 @@ def main(argv):
             issues.append(f"position {dx:+d},{dy:+d} px")
         if f.get("upper"):
             issues.append("all caps in Figma")
+        gaps = [k for k in ("size", "color") if not s.get(k) or not f.get(k)]
+        if gaps:
+            unmeasured.append(f"text \"{s['text'][:40]}\": no {' or '.join(gaps)} in the dumps")
         if issues:
-            rows.append((s["text"][:50], issues, f.get("id")))
+            rows.append((s["text"][:50], issues, f.get("id"), "text:" + key))
     extra = [f for i, f in enumerate(ftexts) if i not in used and f["text"]]
 
     box_rows = []
+    boxes_seen = boxes_matched = 0
     fboxes = fig.get("boxes", [])
     for s in src.get("boxes", []):
         if not s.get("bg") and not s.get("border"):
             continue
+        boxes_seen += 1
         s = dict(s, x=s["x"] + mx, y=s["y"] + my)
         best = max(fboxes, key=lambda f: iou(s, f), default=None)
         if not best or iou(s, best) < 0.5:
+            unmeasured.append(f"box {s['tag']} {round(s['x'])},{round(s['y'])} {round(s['w'])}x{round(s['h'])} ({s.get('bg') or s.get('border')}): no Figma frame on top of it")
             continue
+        boxes_matched += 1
         issues = []
         de = delta_e(best.get("bg"), s.get("bg"))
         if s.get("bg") and best.get("bg") and de is not None and de > de_tol:
@@ -160,34 +199,65 @@ def main(argv):
         if abs(best["w"] - s["w"]) > pos_tol or abs(best["h"] - s["h"]) > pos_tol:
             issues.append(f"size {best['w']}x{best['h']} vs {s['w']}x{s['h']}")
         if issues:
-            box_rows.append((f"{s['tag']} {s['x']},{s['y']} {s['w']}x{s['h']}", best.get("name"), issues, best.get("id")))
+            box_rows.append((f"{s['tag']} {s['x']},{s['y']} {s['w']}x{s['h']}", best.get("name"), issues, best.get("id"), "box:" + str(best.get("id") or best.get("name"))))
+
+    # Accepted differences (--accept): listed with who and why, never silently dropped.
+    keys = [r[3] for r in rows] + ["missing:" + norm(m["text"]) for m in missing] + [b[4] for b in box_rows]
+    hit = [k for k in dict.fromkeys(keys) if k in accepted]
+    stale = [k for k in accepted if k not in keys]
+    is_open = lambda k: k not in accepted
+    open_rows = [r for r in rows if is_open(r[3])]
+    open_missing = [m for m in missing if is_open("missing:" + norm(m["text"]))]
+    open_boxes = [b for b in box_rows if is_open(b[4])]
+    kind = lambda i: i.split(" ")[0] if not i.startswith("line height") else "line height"
+    high = len(open_missing) + sum(1 for r in open_rows if any(kind(i) in HIGH for i in r[1])) \
+        + sum(1 for b in open_boxes if any(kind(i) in HIGH for i in b[2]))
+    medium = len(open_rows) + len(open_boxes) + len(open_missing) - high
+    if high:
+        verdict = "Fail"
+    elif medium or unmeasured:
+        verdict = "Incomplete"
+    elif hit:
+        verdict = "Pass with accepted differences"
+    else:
+        verdict = "Pass"
 
     total = len(rows) + len(missing) + len(box_rows)
     kinds = {}
-    for _, iss, _ in rows:
+    for _, iss, _, _ in open_rows:
         for i in iss:
-            k = i.split(" ")[0] if not i.startswith("line height") else "line height"
+            k = kind(i)
             kinds[k] = kinds.get(k, 0) + 1
     lines = [f"# Fidelity: {fig.get('screen')} vs {src.get('url')}", "",
+             f"- Verdict: **{verdict}** (texts measured {len(src['texts']) - len(missing)}/{len(src['texts'])}, boxes measured {boxes_matched}/{boxes_seen}; open {high} high, {medium} medium; not compared {len(unmeasured)}; accepted {len(hit)})",
+             f"- Inputs: {os.path.basename(argv[1])} (source), {os.path.basename(argv[2])} (Figma)",
              f"- Texts matched: {len(src['texts']) - len(missing)} / {len(src['texts'])}; Figma-only texts: {len(extra)}",
              f"- Open differences: **{total}** (texts {len(rows)}, missing {len(missing)}, boxes {len(box_rows)})",
+             f"- Explained: {len(hit)}",
              f"- Figma frame {fig.get('size')}; source viewport {src.get('viewport')}, page height {src.get('scrollHeight')}; offset Figma - source {mx:+.0f},{my:+.0f} px",
              "- By kind: " + (", ".join(f"{k} {v}" for k, v in sorted(kinds.items(), key=lambda kv: -kv[1])) or "none"),
              "- Position drift that grows down the page usually comes from line heights or gaps; fix those first, then re-run.", ""]
-    if rows:
-        lines += ["## Text differences", "| Text | Differences | Figma node |", "|---|---|---|"]
-        lines += [f"| {t} | {'; '.join(i)} | {nid} |" for t, i, nid in rows] + [""]
-    if missing:
-        lines += ["## In the source, missing in Figma"] + [f"- \"{m['text'][:60]}\" at {m['x']},{m['y']} ({m['size']} px, {m['weight']})" for m in missing] + [""]
-    if box_rows:
-        lines += ["## Box differences", "| Source box | Figma node | Differences |", "|---|---|---|"]
-        lines += [f"| {s} | {n} ({nid}) | {'; '.join(i)} |" for s, n, i, nid in box_rows] + [""]
+    if open_rows:
+        lines += ["## Text differences", "| Text | Differences | Figma node | Key |", "|---|---|---|---|"]
+        lines += [f"| {t} | {'; '.join(i)} | {nid} | `{k}` |" for t, i, nid, k in open_rows] + [""]
+    if open_missing:
+        lines += ["## In the source, missing in Figma"] + [f"- \"{m['text'][:60]}\" at {m['x']},{m['y']} ({m['size']} px, {m['weight']}) `missing:{norm(m['text'])}`" for m in open_missing] + [""]
+    if open_boxes:
+        lines += ["## Box differences", "| Source box | Figma node | Differences | Key |", "|---|---|---|---|"]
+        lines += [f"| {s} | {n} ({nid}) | {'; '.join(i)} | `{k}` |" for s, n, i, nid, k in open_boxes] + [""]
+    if unmeasured:
+        lines += ["## Not compared (check each one; a gap is not a match)"] + [f"- {u}" for u in unmeasured[:80]] + [""]
+    if hit or stale or bad_accept:
+        lines += ["## Accepted differences", "| Key | Why | By | Date |", "|---|---|---|---|"]
+        lines += [f"| `{k}` | {accepted[k].get('reason')} | {accepted[k].get('by')} | {accepted[k].get('date', '')} |" for k in hit]
+        lines += [f"- Stale, matches nothing now (drop it): `{k}`" for k in stale]
+        lines += [f"- Ignored, no reason or no name: `{k}`" for k in bad_accept] + [""]
     if extra:
         lines += ["## In Figma, not in the source (check)"] + [f"- \"{e['text'][:60]}\" ({e.get('id')})" for e in extra[:60]] + [""]
     report = "\n".join(lines)
     if out:
         open(out, "w", encoding="utf-8").write(report)
-    print(report if not out else "\n".join(lines[:6]))
+    print(report if not out else "\n".join(lines[:8]))
     return 0
 
 
