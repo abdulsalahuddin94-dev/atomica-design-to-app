@@ -59,8 +59,8 @@ function hideProjectNav() {
   if (box) box.hidden = true;
 }
 
-const stateLabel = { done: "Done", wait: "Waiting on you", run: "Working…", prob: "Needs a look" };
-const stateDot = { done: null, wait: "bad", run: "run", prob: "wait" };
+const stateLabel = { done: "Done", wait: "Waiting on you", run: "Working…", prob: "Needs a look", todo: "Not started" };
+const stateDot = { done: null, wait: "bad", run: "run", prob: "wait", todo: "idle" };
 const fmtDate = (s) => (s ? String(s).slice(0, 16).replace("T", " ") : "not recorded");
 
 async function renderProjectPage(name, page) {
@@ -108,7 +108,11 @@ function drawPipeline(main, p, o, pl) {
   const ok = pl.next.go === "design" && pl.next.title.startsWith("Everything");
   main.append(el("div", { class: `next-step${ok ? " ok" : ""}` },
     el("div", { class: "t" }, el("span", { class: "kicker" }, "Next step"), el("b", {}, pl.next.title), el("span", { class: "muted small" }, pl.next.text)),
-    el("button", { class: "primary", type: "button", onclick: () => { location.hash = `#/project/${encodeURIComponent(p.name)}/${pl.next.go}`; } }, pl.next.label, icon("i-right"))));
+    el("button", { class: "primary", type: "button", onclick: () => {
+      // "chat": the intake or the next phase goes on in a new conversation, like "Continue in chat" above.
+      if (pl.next.go === "chat") return start({ prompt: PROMPTS.project(p.name), project: p.name, title: p.title }).catch(showError);
+      location.hash = `#/project/${encodeURIComponent(p.name)}/${pl.next.go}`;
+    } }, pl.next.label, icon("i-right"))));
   main.append(el("dl", { class: "p-tally" },
     el("div", {}, el("dt", {}, "Fidelity"), el("dd", {}, o.fidelity != null ? `${o.fidelity}%` : "–")),
     el("div", { class: "mag" }, el("dt", {}, "Open comments"), el("dd", {}, String(o.comments.open))),
