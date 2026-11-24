@@ -129,6 +129,7 @@ function listProjects() {
       unsynced: unsynced(changelog),
       team: String(status.collaboration || "").toLowerCase() === "team",
       storybook: !!status.has_storybook,
+      scope: status.scope || null,
       links: links(status, brief, folder),
       updated: mtime,
     };

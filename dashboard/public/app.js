@@ -669,15 +669,20 @@ function linkChip(l) {
 }
 
 // The proof sign-offs every project moves through (Intake section 8 checkpoints, then the final audit).
-const STAGES = ["Intake", "Foundation", "Components", "Screens", "Audit"];
+// The plan (status.json > scope, intake 2.1b) drops the stages a project does not go to: DS only has no Discover,
+// screens or live prototype; DS and screens has no live prototype.
+const ALL_STAGES = ["Intake", "Discover", "Foundation", "Components", "Screens", "Live prototype", "Audit"];
+const stagesOf = (p) => ALL_STAGES.filter((s) => !(p?.scope === "ds" && ["Discover", "Screens", "Live prototype"].includes(s)) && !(p?.scope === "ds-screens" && s === "Live prototype"));
+// The words a brief or changelog uses for each stage (first five letters, as before, plus the stage's other names).
+const stageWords = (s) => s === "Live prototype" ? ["live prototype"] : s === "Discover" ? ["discover", "research"] : [s.toLowerCase().slice(0, 5)];
 // Reads where a project stands from its brief and changelog text; -1 when nothing says.
-function stageIndex(p) {
+function stageIndex(p, STAGES = stagesOf(p)) {
   const text = [p.phase, p.next, p.last?.title].filter(Boolean).join(" ").toLowerCase();
-  const next = text.match(/next (?:phase|step)[:\s]+(\w+)/);
-  const at = next ? STAGES.findIndex((s) => next[1].startsWith(s.toLowerCase().slice(0, 5))) : -1;
+  const next = text.match(/next (?:phase|step)[:\s]+([\w ]+)/);
+  const at = next ? STAGES.findIndex((s) => stageWords(s).some((w) => next[1].trim().startsWith(w))) : -1;
   if (at >= 0) return at;
   let best = -1;
-  STAGES.forEach((s, i) => { if (text.includes(s.toLowerCase().slice(0, 5))) best = i; });
+  STAGES.forEach((s, i) => { if (stageWords(s).some((w) => text.includes(w))) best = i; });
   if (best >= 0 && /(done|approved|finished|complete)/.test(text) && best < STAGES.length - 1) best += 1;
   return best;
 }
@@ -686,7 +691,8 @@ let phaseTimesCache = null;
 const getPhaseTimes = () => (phaseTimesCache ||= api("/api/phase-times").then((r) => r.phases || {}).catch(() => ({})));
 const fmtMinutes = (m) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`);
 function track(p) {
-  const at = stageIndex(p);
+  const STAGES = stagesOf(p);
+  const at = stageIndex(p, STAGES);
   const usual = el("span", { class: "usual" });
   if (at >= 0) getPhaseTimes().then((t) => {
     const x = t[STAGES[at]];
@@ -1003,7 +1009,7 @@ function renderChat(id, mount) {
   // The intake (and every later phase) puts a progress line in each question: the AskUserQuestion header or the first
   // line of a typed question ("Intake 2/11"). Once one is seen, the conversation shows as a wizard: a progress bar on
   // top and only the current step (Claude's question with its menu or input fields); "Show conversation" shows all.
-  const STEP_RE = /^[\s*_#>]*((?:Intake|Discover|Checkpoint|Foundation|Components|Screens|Storybook|Quick task)\b[^\n*_]*?)\s*(?:(\d+)\s*\/\s*(\d+))?[\s*_]*$/i;
+  const STEP_RE = /^[\s*_#>]*((?:Intake|Discover|Checkpoint|Foundation|Components|Screens|Live prototype|Backend|Handoff|Storybook|Quick task)\b[^\n*_]*?)\s*(?:(\d+)\s*\/\s*(\d+))?[\s*_]*$/i;
   const parseStep = (line) => {
     // the last progress line in the text: a reply can start with notes and end with the question
     const m = String(line || "").split("\n").map((l) => l.match(STEP_RE)).filter(Boolean).pop();
@@ -1021,6 +1027,9 @@ function renderChat(id, mount) {
     if (/^checkpoint\s*1/.test(n) || n.startsWith("foundation")) return "foundation";
     if (/^checkpoint\s*2/.test(n) || n.startsWith("components")) return "components";
     if (/^checkpoint\s*3/.test(n) || n.startsWith("screens")) return "screens";
+    if (/^checkpoint\s*4/.test(n) || n.startsWith("live prototype")) return "proto";
+    if (n.startsWith("backend")) return "backend";
+    if (n.startsWith("handoff")) return "handoff";
     if (n.startsWith("storybook")) return "finish";
     return "intake";
   };
