@@ -121,6 +121,7 @@ updated: 2026-09-30
 
 ## Measured fidelity (Abdul, 2026-11-03)
 - Every pull from a running source (GitHub code run locally, a live app) into Figma had small color, shape and size differences that Abdul found by eye and sent as screenshots. Now each screen gets a measured check: `tools/source_dump.js` in the running source (same width, shell state, mode and data record as the Figma screen), `tools/figma_text_dump.figma.js` on the frame, `tools/fidelity_diff.py` report in `audits/`; Open differences must be 0 or explained before the screen is reported. Values with no matching variable are listed for approval, never silently snapped to the nearest. Screen frames are never below 1440 x 900 (Desktop) or 375 x 812 (Mobile); helper scripts and the audit enforce the floor. Rule: Design_System_Intake_Skill/steps/screens.md 7f step 4b.
+- **A gap in a measurement is not a match (Abdul approved, 2026-11-24, idea from its-magdy/design-twin, MIT).** Every measured check reports what it could not compare next to what differed, and ends with one verdict: Fail / Incomplete / Pass with accepted differences / Pass. Incomplete is never reported as a match. A difference is accepted only by the user, recorded with who and why in a file the tool reads (`fidelity_diff.py --accept`), never as a hand-typed count. Rule: screens.md 7f step 4b.5.
 
 ## Radio vs Select (Abdul, 2026-09-30)
 - Radio groups hold 2 to 6 options; 7 or more use Select / Dropdown. Both component descriptions state the same number.

@@ -140,7 +140,7 @@ function main() {
           " Before calling the screen done, run the measured check (Design_System_Intake_Skill/steps/screens.md 7f step 4b: " +
           "tools/source_dump.js in the running source, tools/figma_text_dump.figma.js on the frame, tools/fidelity_diff.py " +
           `--out <project>/audits/<date>-fidelity-<screen>.md) and fix until it scores ${MIN_FIDELITY}% or more. ` +
-          "Differences the user accepted go in the report as \"- Explained: N\". If this turn only asks the user something, say the screen is not done yet and why.");
+          "Differences the user accepted go in audits/<screen>-accepted.json with who and why, and the report is re-run with --accept <that file> (it then prints \"- Explained: N\"). If this turn only asks the user something, say the screen is not done yet and why.");
       }
     }
     const pending = Object.keys(s.dsChanged || {}).filter((f) => !(s.reminded || {})[f]);
