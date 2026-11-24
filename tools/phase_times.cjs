@@ -7,7 +7,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const PHASES = ["Intake", "Foundation", "Components", "Screens", "Storybook", "Quick task"];
+const PHASES = ["Intake", "Discover", "Foundation", "Components", "Screens", "Live prototype", "Storybook", "Quick task"];
 
 // "47m active (2h 03m total)", "1h 05m active", "20m" -> active minutes
 function minutes(text) {

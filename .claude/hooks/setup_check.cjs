@@ -8,6 +8,8 @@
 // `node .claude/hooks/run.cjs setup_check --force`, checks again. Never fails the session.
 //   --force   ignore the record and check again
 //   --report  print a plain-text table instead of hook JSON (for a manual run)
+// Entries with "optional": true (Claude Code plugins the workflow recommends) never block the record: a missing one
+// is offered once, with the first record, and then stays quiet until dependencies.json changes.
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
@@ -34,8 +36,29 @@ function expand(p) {
   return p.replace(/^~(?=[\\/])/, os.homedir()).replace(/%([^%]+)%/g, (m, v) => process.env[v] || m);
 }
 
+// Claude Code plugins installed for this user (~/.claude/plugins/installed_plugins.json, keys "name@marketplace").
+function installedPlugins() {
+  const base = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  const j = readJson(path.join(base, "plugins", "installed_plugins.json")) || {};
+  return new Set(Object.keys(j.plugins || j));
+}
+
+// One line per missing item, with this OS's install command (or the command for every OS).
+function line(r) {
+  const d = r.dep;
+  const plat = process.platform;
+  const cmd = d.install[plat] || d.install.all;
+  return `- ${d.name}${r.reason ? " (" + r.reason + ": " + r.found + ")" : ""}, ${d.optional ? "recommended" : "needed"} for ${d.why}. ` +
+    (cmd ? `Install: \`${cmd}\`` : `Install by hand: ${d.install.manual}`) +
+    (d[`note_${plat}`] ? ` ${d[`note_${plat}`]}` : "");
+}
+
 function check(dep) {
   const c = dep.check || {};
+  if (c.plugins) {
+    const hit = c.plugins.find((id) => installedPlugins().has(id));
+    return hit ? { ok: true, found: hit } : { ok: false };
+  }
   for (const [cmd, ...a] of c.commands || []) {
     const r = spawnSync(cmd, a, { encoding: "utf8", timeout: 10000, windowsHide: true });
     const out = ((r.stdout || "") + (r.stderr || "")).trim();
@@ -74,31 +97,32 @@ function main() {
   if (!FORCE && !REPORT && saved && saved.list_hash === hash && saved.platform === process.platform && saved.all_ok) return;
 
   const results = deps.map((d) => ({ dep: d, ...check(d) }));
-  const missing = results.filter((r) => !r.ok);
+  const missing = results.filter((r) => !r.ok && !r.dep.optional);
+  const optionalMissing = results.filter((r) => !r.ok && r.dep.optional);
   if (REPORT) {
-    for (const r of results) process.stdout.write(`${r.ok ? "OK     " : "MISSING"} ${r.dep.name}${r.found ? " (" + r.found + ")" : ""}${r.reason ? " - " + r.reason : ""}\n`);
+    for (const r of results) process.stdout.write(`${r.ok ? "OK     " : r.dep.optional ? "OPTIONAL" : "MISSING"} ${r.dep.name}${r.found ? " (" + r.found + ")" : ""}${r.reason ? " - " + r.reason : ""}\n`);
   }
   if (!missing.length) {
     fs.mkdirSync(path.dirname(STATE), { recursive: true });
     fs.writeFileSync(STATE, JSON.stringify({
       list_hash: hash, platform: process.platform, all_ok: true, checked_at: new Date().toISOString(),
-      found: Object.fromEntries(results.map((r) => [r.dep.id, r.found])),
+      found: Object.fromEntries(results.filter((r) => r.ok).map((r) => [r.dep.id, r.found])),
+      optional_missing: optionalMissing.map((r) => r.dep.id),
     }, null, 2) + "\n");
+    // Recommended plugins are offered once, with the first record; the record keeps later sessions quiet.
+    if (optionalMissing.length && !REPORT) {
+      emit("Machine setup: everything the workflow needs is installed. Recommended Claude Code plugins that are missing " +
+        "(optional, asked once on this machine):\n" + optionalMissing.map(line).join("\n") + "\n" +
+        "In the first reply, mention them in one line and Ask (choice) once: \"Install them now (Recommended)\" / \"Not now\" " +
+        "(Design_System_Intake_Skill/steps/machine-setup.md step 8). Run the commands only after the user's yes, then restart Claude Code.\n");
+    }
     return;
   }
   try { fs.unlinkSync(STATE); } catch (e) { /* no record yet */ } // a missing tool cancels an old record
   if (REPORT) return;
-  const plat = process.platform;
-  const lines = missing.map((r) => {
-    const d = r.dep;
-    const cmd = d.install[plat];
-    return `- ${d.name}${r.reason ? " (" + r.reason + ": " + r.found + ")" : ""}, needed for ${d.why}. ` +
-      (cmd ? `Install: \`${cmd}\`` : `Install by hand: ${d.install.manual}`) +
-      (d[`note_${plat}`] ? ` ${d[`note_${plat}`]}` : "");
-  });
   emit(
     "Machine setup: this computer is missing workflow dependencies (from tools/dependencies.json):\n" +
-    lines.join("\n") + "\n" +
+    missing.map(line).join("\n") + "\n" +
     "Before the intake's first question, follow Design_System_Intake_Skill/steps/machine-setup.md: say in one line what is " +
     "missing and offer to set it up (one menu for all of them). Run the install commands only after the user's yes. " +
     "Nothing is recorded until everything is found, so this check repeats at each session start until then; once all are " +

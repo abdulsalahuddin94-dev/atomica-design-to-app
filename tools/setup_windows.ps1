@@ -4,7 +4,8 @@
 # Written for Windows PowerShell 5.1 (the one every Windows has), so no PowerShell 7 syntax.
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
-$deps = (Get-Content -Raw -Encoding UTF8 (Join-Path $root 'tools\dependencies.json') | ConvertFrom-Json).dependencies
+# Optional entries (Claude Code plugins) are offered by Claude at session start, not installed here.
+$deps = (Get-Content -Raw -Encoding UTF8 (Join-Path $root 'tools\dependencies.json') | ConvertFrom-Json).dependencies | Where-Object { -not $_.optional }
 
 function Refresh-Path {
   $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')

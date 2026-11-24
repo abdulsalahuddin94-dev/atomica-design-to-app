@@ -1,5 +1,5 @@
 {
-  "_help": "Machine dependencies of the workflow. .claude/hooks/setup_check.cjs checks them at session start once per machine and records the result in .claude/.state/machine-setup.json (git-ignored). Editing this file makes every machine check again. Install commands run only after the user's yes (Design_System_Intake_Skill/steps/machine-setup.md). Node.js is the one thing a user installs before anything else: the hooks themselves run on it.",
+  "_help": "Machine dependencies of the workflow. .claude/hooks/setup_check.cjs checks them at session start once per machine and records the result in .claude/.state/machine-setup.json (git-ignored). Editing this file makes every machine check again. Install commands run only after the user's yes (Design_System_Intake_Skill/steps/machine-setup.md). Node.js is the one thing a user installs before anything else: the hooks themselves run on it. Entries with \"optional\": true are recommended, never blocking: a missing one (a Claude Code plugin the workflow uses for quality) is offered once, then recorded and not asked again; Setup-Windows skips them.",
   "dependencies": [
     {
       "id": "node",
@@ -49,6 +49,28 @@
         "win32": "winget install -e --id Figma.Figma --accept-package-agreements --accept-source-agreements",
         "darwin": "brew install --cask figma",
         "manual": "https://www.figma.com/downloads/"
+      }
+    },
+    {
+      "id": "figma-plugin",
+      "name": "Figma plugin for Claude Code (figma-use, figma-generate-library, figma-generate-design)",
+      "optional": true,
+      "why": "the Plugin API rules and build guides the Foundation, Components and Screens steps load",
+      "check": { "plugins": ["figma@claude-plugins-official"] },
+      "install": {
+        "all": "claude plugin marketplace add anthropics/claude-plugins-official && claude plugin install figma@claude-plugins-official",
+        "manual": "https://github.com/anthropics/claude-plugins-official"
+      }
+    },
+    {
+      "id": "impeccable",
+      "name": "Impeccable (design quality skills)",
+      "optional": true,
+      "why": "shape, critique and polish of screens and foundations (memory/decisions.md > Screens skills)",
+      "check": { "plugins": ["impeccable@impeccable"] },
+      "install": {
+        "all": "claude plugin marketplace add pbakaus/impeccable && claude plugin install impeccable@impeccable",
+        "manual": "https://github.com/pbakaus/impeccable"
       }
     }
   ]
