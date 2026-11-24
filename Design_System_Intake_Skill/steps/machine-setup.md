@@ -18,4 +18,6 @@ Load when the session-start context says "Machine setup: this computer is missin
 6. **Myself:** show each command and link, then continue as Later.
 7. **Later:** continue. The check repeats at the next session start, because nothing is recorded until everything is installed. Any step that needs a missing tool (for example a `tools/*.py` script without Python) is skipped and named in one line.
 
+8. **Recommended plugins (optional, 2026-11-24):** entries with `"optional": true` (the Figma plugin for Claude Code, Impeccable) never block the record. When one is missing, the first session that records the machine says so; mention it in one line and Ask (choice) once: "Install them now (Recommended)" (description: Claude runs the `claude plugin` commands from the context, then you restart Claude Code) / "Not now" (description: the workflow still runs; the steps that load them say in one line that they are missing). The record keeps later sessions quiet until `tools/dependencies.json` changes or `--force`.
+
 Figma tools (FigCli Yolo, the Desktop Bridge) are not in this list: the preflight checks them next (0b checks 1-5) because the user runs their patch and token steps.
