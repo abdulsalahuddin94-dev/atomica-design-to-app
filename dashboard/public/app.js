@@ -1131,7 +1131,7 @@ function renderChat(id, mount) {
         el("div", { class: "foot" }, back, el("button", { type: "button", class: "primary", onclick: next }, "Next")));
       setTimeout(() => repo.input.focus(), 0);
     } else if (/describe the product idea/i.test(text)) {
-      // Start new research (Discover D0.1, steps/discover.md): the idea in a text box, helpful documents attached into Inputs/Research.
+      // Start new research (intake 0.3b "Don't have inputs" and Discover D0.1): the idea in a text box, helpful documents attached into Inputs/Research.
       const idea = el("textarea", { rows: 6, placeholder: "The product idea, who it is for, the market or country, and what you want to learn", dir: "auto" });
       const list = el("ul", { class: "file-list" });
       const attached = [];

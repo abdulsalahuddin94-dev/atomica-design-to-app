@@ -12,13 +12,24 @@ Preselected style: when the conversation's first message names one ("Use the sty
 
 Ask (choice): "Which visual direction should the design system start from?"
 - "My brand files (Recommended)" (description: colors, fonts and mood come from Inputs/Brand and Inputs/Inspiration; shown only when `Inputs/Brand/` has files, and then first)
-- "Pick a style from the library" (description: 138 looks in 20 categories; the style sets colors, type, radius and mood, the components keep the reference structure). First and recommended when `Inputs/Brand/` is empty.
+- "Research and suggest a direction (Recommended)" (description: I look at the product's market and competitors and suggest 2 to 3 styles, each with a brand color and the reason). Shown only when `Inputs/Brand/` is empty, and then first (Abdul, 2026-11-24: a project with no inputs should not pick its look blind).
+- "Pick a style from the library" (description: 138 looks in 20 categories; the style sets colors, type, radius and mood, the components keep the reference structure).
 - "No style, use defaults" (description: the platform defaults now, the industry direction at 3.4)
 - "Back"
 
 - **My brand files** -> nothing is recorded here (`status.json > style` stays null); 0.3c prefills from the files as before.
+- **Research and suggest** -> 0.3e.1b.
 - **No style** -> `style` stays null; continue with 0.3c / 0.4.
 - **Pick a style** -> 0.3e.2.
+
+## 0.3e.1b Direction research and suggestions (Abdul, 2026-11-24)
+
+Light research for the **look only**; users, flows and the IA stay in Discover (`steps/discover.md`), which reuses what this step finds.
+1. **Brief.** Read `Research/00-request.md` (written at 0.3b "Don't have inputs") and any files in `Inputs/Inspiration/` and `Inputs/Research/`. No brief yet -> ask the 0.3b typed question first (same text, so the dashboard shows the text box).
+2. **Warn, then research.** One line first: this step uses web search and a fair number of tokens (heavy-step warning, `SKILL.md` 0c). Then, with web search and page reading: the product category in the market or country of the brief, and **up to 5 competitors or close products** (direct first, one best-in-class from a nearby category). For each: name, link, main colors, type personality, density, corner style, mood, and what users of that category expect (trust signals, calm vs energetic, data-dense vs simple). Write "not visible" for anything you could not see; never invent. Save `Research/00-direction.md` with `[M<n>]` tags and a Sources list (the Discover tag format, 17.10).
+3. **Pick 2 to 3 styles.** From `Style_Library/styles.json` (index only; open only the picked `DESIGN.md` files for their colors and font), choose 2 to 3 styles that fit the category's expectations, and make them differ from each other (e.g. one close to the category's conventions, one that stands out). For each: a **brand color** (the style's primary, or a nearby hue when every competitor already uses it; contrast pre-checked with `tools/new_foundation.py --check-only`) and **one sentence why**, citing the research (`[M2]`, "3 of 5 competitors use navy, so teal stands out").
+4. **Show and ask.** Post a short summary of the research (3 to 5 lines: category, competitors, what the look should signal), then Ask (choice): "Which direction fits <Project>?" with the 2 to 3 suggestions (label = style title, description = the brand color and the reason; `preview` = `Colors:` and `Font:` lines, SKILL.md section 0 Previews) + "Back" (returns to 0.3e.1, where the library and the defaults are). A typed answer through Other can name another style or a change ("the second one but warmer").
+5. **Record.** The chosen style goes to 0.3e.4 like a picked style; `status.json > style.source = "research"` and `style.brand_color_reason`. The suggestions and the pick go in `Project_Brief.md > 0.3e`. Brand-inspired styles follow 0.3e.5, and the suggested brand color is a placeholder the client may replace.
 
 ## 0.3e.2 Category
 
@@ -53,5 +64,5 @@ Merge the style's answers into the 0.3c list (0.3c runs right after this file): 
 
 Record after "Use all of these":
 - `Project_Brief.md > 0.3e`: "Style: <title> (<slug>, <category>), inspired by a brand: yes/no" (or "My brand files" / "No style") and each prefilled answer with its source.
-- `status.json > style` = `{"slug", "title", "category", "inspired_by_brand", "file": "Style_Library/<slug>/DESIGN.md", "source": "intake" | "dashboard"}`.
+- `status.json > style` = `{"slug", "title", "category", "inspired_by_brand", "file": "Style_Library/<slug>/DESIGN.md", "source": "intake" | "dashboard" | "research"}` (with `"brand_color_reason"` when the source is research, 0.3e.1b).
 - The Intake Summary's Direction line starts with `Style: <title>` (and "inspired by" for brand styles).
