@@ -55,9 +55,9 @@ Claude does not just list findings: it draws conclusions, recommends one option 
 
 1. **Opportunities:** turn the insights into opportunity statements in the user's words ("I can't tell which plan fits me"), grouped under one product outcome as a tree: outcome -> opportunities -> 2 to 3 solution ideas each.
 2. **Decision list,** in this order (each changes the next): D5.1 Is the problem worth solving (go / narrow the scope / stop; red flags: no evidence of pain, a market too small to matter, a required licence the client lacks) · D5.2 Primary audience (which persona the first release serves) · D5.3 Product form (Web, mobile app, both, adaptive) · D5.4 MVP scope (keep / cut / add / defer per feature) · D5.5 Positioning (the 1 or 2 gaps from D2 the product wins on) · D5.6 Key UX choices (e.g. guest checkout or sign-up first). Skip a decision the Intake already settled (e.g. the platform) and say so.
-3. **One decision per question.** Before each: the 2 to 3 options, the recommendation, the evidence for and against with tags and counts ("4 of 6 competitors [M2]; 31 store reviews [M5]"), the risk and how to validate it later (a test on the prototype, 5 interviews). Then Ask (choice): recommended option first, the others, "Change something" (Other) and Back. An answer against the evidence is fine; log it with the reason.
-4. **Challenge:** run the devils-advocate review on the decision list (the dashboard Audit "Challenge the plan", or the same skill in the terminal when installed; otherwise reread it as a sceptical outsider). Name the weakest assumption and add a fix or an open question.
-5. **Decision log:** one row per decision: ID, choice, why, evidence tags, owner (the user), date. IA, flows and screen specs cite these IDs.
+3. **One decision per question.** Before each: the 2 to 3 options, the recommendation, the evidence for and against with tags and counts ("4 of 6 competitors [M2]; 31 store reviews [M5]"), the risk and how to validate it later (a test on the prototype, 5 interviews). Write the recommendation as a **bet that can be shown wrong** (2026-11-24, idea from ghaida/intent): "We believe <assumption>; wrong if <what we would see>", e.g. "Parents drop the sign-up over the 6 fields; wrong if fewer than 2 of 5 prototype testers stop there". A bet with no "wrong if" is a wish: rewrite it. Then Ask (choice): recommended option first, the others, "Change something" (Other) and Back. An answer against the evidence is fine; log it with the reason.
+4. **Challenge:** run the devils-advocate review on the decision list (the dashboard Audit "Challenge the plan", or the same skill in the terminal when installed; otherwise reread it as a sceptical outsider). Name the weakest assumption and add a fix or an open question. Check these five traps too, each tied to its decision, and flag any you find before the approval: **wrong audience** (D5.2 rests on opinion, "users want" with no tag), **a problem nobody has** (D5.1 reads like a feature, or its pain is one anecdote), **feature bloat** (D5.4 keeps features nobody asked for, or keep / cut / add / defer was skipped), **blind to competitors** (D2 names no indirect competitor or "do nothing"), **decided too early** (screens, a platform or a feature list fixed before D5.1 was answered).
+5. **Decision log:** one row per decision: ID, choice, why, bet and its "wrong if", evidence tags, owner (the user), date. IA, flows and screen specs cite these IDs.
 6. Write `Research/research.md`, a one-page summary (top insights, decisions, open questions) that later phases read instead of the long files.
 7. Ask (choice) "Decisions are ready. Approve them?" "Approve, go to the IA (Recommended)" / "Request changes" / "Back".
 
@@ -76,7 +76,7 @@ Claude does not just list findings: it draws conclusions, recommends one option 
 - One file per flow in the flow map format of `steps/plan-user-flows.md` (7e.0): overview, screen map, decision points, not designed now, Figma placement. Load that file for the format.
 - The state matrix lists 9 states per screen: default, loading, empty, error, partial (some data), offline, no permission, first use, long content and RTL. A state that cannot happen is written "n/a" with the reason.
 - Checks before showing: the usability pre-check of 7e.0 (Nielsen 3, 4, 5, 9), the dark pattern check (no confirmshaming, hidden costs, forced continuity, pre-ticked consent, fake urgency, roach-motel cancellation), and each flow cites the decision IDs it comes from.
-- Each flow gets 1 to 3 success measures (goal -> signal -> metric) and one usability task for the prototype later.
+- Each flow gets 1 to 3 success measures (goal -> signal -> metric), each with a **guardrail**: the user-side measure that must not get worse while the goal improves (faster sign-up, but support tickets about it must not rise), and one usability task for the prototype later.
 - Ask (choice) per flow "Approve the <flow> flow?" "Approve (Recommended)" / "Request changes" / "Back". Light: one approval for the IA and all flows.
 
 ## 17.8 After Discover
@@ -84,6 +84,15 @@ Claude does not just list findings: it draws conclusions, recommends one option 
 - The approved flows are the screen list: 7e step 1 (gap table) reads `Planning/07-flows/` instead of re-mapping them, and 7e.0 is skipped for those flows. Screen specs (7f) list their states from the matrix and cite the decision IDs.
 - Vibe code / Code first: the prototype builder reads `07-flows/` for routes and `06-ia.md` for navigation and names.
 - Handoff: `Project_Brief.md` (Checkpoints `Discover: Approved <date>` only after the user's answer, `Next step:`), a `CHANGELOG.md` entry with `Phase: Discover` and the `session_cost.py` lines, `status.json > discover.checkpoints`. Then tell the user the phase is done and the next session starts Foundation (or the code).
+
+## 17.8b Reopening a decision (2026-11-24, idea from ghaida/intent)
+
+Evidence from later stages can show a logged bet was wrong: prototype comments triaged on the Review page, the usability review (7e step 4b), the flows' usability tasks, or real use after launch.
+- **It counts** when it meets a decision's "wrong if", or when it shows the audience, the core feature or the place users drop off is not what D5 assumed.
+- **It does not count:** one comment or one reviewer's taste, results a little under the hope (direction matters more than size), a first-week spike or dip, one segment doing worse (fix that segment, keep the decision).
+- **How:** name the decision ID and its bet, show the evidence with counts and tags ("4 of 6 testers stopped at step 2 [I7]"), and Ask (choice) "Reopen <D5.x>?" "Reopen it (Recommended)" / "Keep the decision" / "Back". Only the user reopens. A reopen updates `Research/05-decisions.md` (old row kept, marked replaced), then the IA, flows and screens that cite the ID are listed for change; nothing is rebuilt before that list is approved.
+- **At most one reopen per decision per iteration.** A second one means the framing itself is off: stop and tell the user the tension in plain words instead of reopening again.
+- Log it in `CHANGELOG.md` (`Decision reopened: D5.x, why`).
 
 ## 17.9 Gemini Notebook (NotebookLM) through gemini-notebook-mcp-cli
 
