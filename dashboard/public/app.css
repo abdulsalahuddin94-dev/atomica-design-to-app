@@ -328,7 +328,9 @@ a.chip:hover{border-color:var(--cyan);color:var(--cyan-ink)}
 .shots.compare .shot{max-width:calc(50% - 5px)}
 .sys{font:400 12.5px var(--mono);color:var(--ink-3);text-align:center}
 .sys.err{color:var(--magenta-ink)}
-.typing{display:flex;gap:5px;padding:4px 0 4px 16px}
+.typing{display:flex;gap:5px;padding:4px 0 4px 16px;align-items:center}
+.typing .doing{margin-left:10px;font-size:13px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70ch}
+.typing .doing:empty{display:none}
 .typing i{width:7px;height:7px;border-radius:1px;animation:blink 1.2s infinite}
 .typing i:nth-child(1){background:var(--cyan)}.typing i:nth-child(2){background:var(--magenta);animation-delay:.2s}.typing i:nth-child(3){background:var(--yellow);animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
