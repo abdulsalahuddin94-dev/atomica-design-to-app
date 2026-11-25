@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/9c5983ea-5297-472f-88c4-1dd1820ee239
 - `.claude/agents/`, `.claude/hooks/`, `.claude/settings.json`, `.claude/scheduled/`: the Claude toolkit (see below).
 - `References.md`: the reference library (entries, Figma links, how to add one) and tooling links.
 - `Style_Library/`: 138 visual styles (look only: colors, type, radius, mood), one `DESIGN.md` each, indexed in `styles.json`. A Greenfield project can start from one at intake 0.3e; its components still follow the reference design system. Reference vs Style: `Style_Library/README.md`.
-- `Workflow_References/`: ready guides adopted from public MIT agent-skill repos (readiness and drift scores, UX rules for screens, deprecation, decision records), each loaded at one step; index and credits in its `README.md`.
+- `Workflow_References/`: ready guides adopted from public MIT agent-skill repos (readiness and drift scores, UX rules for screens, deprecation, decision records), each loaded at one step, plus the on-request AI review from alfaris/Design-AI-Skills (CC BY 4.0, Ahmed Faris); index and credits in its `README.md`.
 - `docs/`: pages for people, not for Claude: Getting started (with the Team guide), an interactive Workflow map, FAQ and troubleshooting, and the presentation. Start at `docs/README.md`.
 - `.claude/skills/`: slash commands `/design-system-intake`, `/web-design-system`, `/ios-design-system`, `/android-design-system`, plus two loaded on their own: `figma-plugin-api-rules` (before any Figma write script) and `fix-variable-bindings` (scan, report, rebind).
 

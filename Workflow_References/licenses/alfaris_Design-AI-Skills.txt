@@ -1,0 +1,8 @@
+Source: https://github.com/alfaris/Design-AI-Skills (design-audit-panel/, devils-advocate-and-convincer/, copied unchanged into .claude/skills/ on 2026-11-09, except a short source comment after each SKILL.md frontmatter)
+
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) 2026 Ahmed Faris / فارس المجرة
+
+License: https://creativecommons.org/licenses/by/4.0/
+Legal code: https://creativecommons.org/licenses/by/4.0/legalcode
