@@ -4,6 +4,10 @@ Every mistake Abdul reports or a check finds gets one entry here in the session 
 
 Teammates share their lessons through `/contribute` (`CONTRIBUTING.md`); an entry lands here only after Abdul accepts it, marked `(contributed by <login>)`.
 
+## Long Figma steps looked frozen in the wizard; the project card showed the wrong stage (2026-11-25)
+1. **"It looks hung" (Abdul, Sanad test).** The wizard view shows only Claude's last message, so a several-minute Figma write showed one old line and three small dots. Rule: the working indicator names the newest step and how long it has run ("Working in Figma: Point group 1 semantic colors at Primitives · 1m 20s"); a bare file path shows as the action and the file name. Check: open a busy conversation; `.typing .doing` has text and its seconds go up.
+2. **The Sanad card said "Live prototype 6 of 7" during Foundation.** Cause: `stageIndex()` took the last stage any word of the brief's Next step mentioned ("... Screens later read Planning/07-flows"). Rule: the stage the Next step or Phase line starts with wins; mentions later in the line are only a fallback. Check: the Sanad card shows Foundation 3 of 7.
+
 ## Dashboard chat crashed with "Out of Memory" (2026-11-25)
 1. **The Sanad conversation tab crashed ("Aw, Snap! Out of Memory") and came back blank after Reload (Abdul).** Cause: the dashboard's small Markdown renderer (`markdown()` in `dashboard/public/app.js`) loops forever on a line that looks like a table row (`| a | b |`) with no separator row under it: the table branch skips it and the paragraph loop stops on it without moving on, so it pushed empty paragraphs until the tab ran out of memory. The session itself kept running in the server. Rule: every loop in a text parser moves at least one line per pass; a line no branch takes is plain text. Check: open a conversation whose replies have a lone table-like line (headless Chromium: the page loads and `performance.memory` stays small).
 

@@ -684,6 +684,13 @@ function stageIndex(p, STAGES = stagesOf(p)) {
   const next = text.match(/next (?:phase|step)[:\s]+([\w ]+)/);
   const at = next ? STAGES.findIndex((s) => stageWords(s).some((w) => next[1].trim().startsWith(w))) : -1;
   if (at >= 0) return at;
+  // The brief's Next step or Phase line names the stage first ("Foundation on the ... copy; Screens later ..."):
+  // that first word wins over stages the line only mentions later (Sanad test: it showed Live prototype).
+  for (const line of [p.next, p.phase]) {
+    const head = String(line || "").toLowerCase().replace(/^\W*(next(?: phase| step)?\s*:?\s*)?/, "");
+    const first = STAGES.findIndex((s) => stageWords(s).some((w) => head.startsWith(w)));
+    if (first >= 0) return first;
+  }
   let best = -1;
   STAGES.forEach((s, i) => { if (stageWords(s).some((w) => text.includes(w))) best = i; });
   if (best >= 0 && /(done|approved|finished|complete)/.test(text) && best < STAGES.length - 1) best += 1;
@@ -1256,13 +1263,24 @@ function renderChat(id, mount) {
   };
   const clearAttention = () => { if (!document.hidden) document.title = baseTitle; };
   document.addEventListener("visibilitychange", clearAttention);
-  current.cleanup = () => { document.removeEventListener("visibilitychange", clearAttention); document.title = baseTitle; };
+  // What Claude is doing right now (the newest tool step) and for how long, under the dots, so a long Figma write
+  // never looks frozen (Abdul, Sanad test 2026-11-25).
+  const doing = { text: "", at: 0 };
+  const fmtFor = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`; };
+  const paintDoing = () => {
+    const span = typing?.querySelector(".doing");
+    if (!span) return;
+    const figma = /figma|figcli|semantic|primitive|variable|component|frame|screen|style/i.test(doing.text);
+    span.textContent = doing.text ? `${figma ? "Working in Figma" : "Working"}: ${doing.text} · ${fmtFor(Date.now() - doing.at)}` : (doing.at ? `Thinking · ${fmtFor(Date.now() - doing.at)}` : "");
+  };
+  const doingTimer = setInterval(paintDoing, 1000);
+  current.cleanup = () => { document.removeEventListener("visibilitychange", clearAttention); document.title = baseTitle; clearInterval(doingTimer); };
   let typing = null;
   const removeTyping = () => { typing?.remove(); typing = null; };
   const updateTyping = () => {
     removeTyping();
     const who = state.agent === "gemini" ? "Gemini" : "Claude";
-    if (state.busy && !state.pending.size) { typing = el("div", { class: "typing" + (state.agent === "gemini" ? " gemini" : ""), "aria-label": `${who} is working` }, el("i"), el("i"), el("i")); log.append(typing); }
+    if (state.busy && !state.pending.size) { typing = el("div", { class: "typing" + (state.agent === "gemini" ? " gemini" : ""), "aria-label": `${who} is working`, role: "status" }, el("i"), el("i"), el("i"), el("span", { class: "doing" })); log.append(typing); paintDoing(); }
     $("#stop").hidden = !state.busy;
     $("#status-line").textContent = state.limit && state.agent !== "gemini" ? (state.limit.resetsAt ? `Claude is over its usage limit until ${fmtTime(state.limit.resetsAt)}. Messages you send now wait and go out then, or switch the tool to Gemini.` : "Claude is over its usage limit. Messages you send now wait until it is back.") :
       state.pending.size ? `${who} is waiting for your answer above.` : state.busy ? `${who} is working…` :
@@ -1366,6 +1384,7 @@ function renderChat(id, mount) {
         if (nearBottom()) scroll();
         break;
       case "text":
+        Object.assign(doing, { text: "", at: e.at || Date.now() });
         state.toolRow = null;
         if (state.live && e.streamed) { state.live.innerHTML = markdown(e.text); state.live.title = timeTitle(e.at) || ""; finishReply(state.live, e.text); state.live = null; }
         else { state.live = null; stamp(e.at); add(finishReply(el("div", { class: "msg claude" + (e.agent === "gemini" ? " gemini" : ""), dir: "auto", title: timeTitle(e.at), html: markdown(e.text) }), e.text)); }
@@ -1373,6 +1392,9 @@ function renderChat(id, mount) {
         break;
       case "tool":
         state.live = null; wiz.typed = null;
+        { // a bare file path reads better as the action and the file name ("Read notes.md")
+          const d = String(e.detail || ""), path = d && !/\s/.test(d) && /[\\/]/.test(d);
+          Object.assign(doing, { text: path ? `${e.name} ${d.split(/[\\/]/).pop()}` : (d || e.name || ""), at: e.at || Date.now() }); }
         if (!state.toolRow) state.toolRow = add(el("div", { class: "tools" }));
         state.toolRow.append(el("span", { class: "t" + (e.sub ? " sub" : ""), title: `${e.name} ${e.detail}` }, el("b", {}, e.name), e.detail ? ` ${e.detail}` : ""));
         foldTools(state.toolRow);
@@ -1415,6 +1437,7 @@ function renderChat(id, mount) {
       }
       case "busy":
         state.busy = e.busy;
+        Object.assign(doing, { text: "", at: e.busy ? (e.at || Date.now()) : 0 });
         break;
       case "result":
         state.toolRow = null; state.live = null;
