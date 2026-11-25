@@ -140,6 +140,7 @@ export async function projectOverview(folder) {
   const inbox = readJson(path.join(proto, "comments", "inbox.json"), null);
   const fidelity = readJson(path.join(proto, "fidelity", "report.json"), []);
   const changelog = readText(path.join(folder, "CHANGELOG.md"));
+  const brief = readText(path.join(folder, "Project_Brief.md"));
   const scored = (Array.isArray(fidelity) ? fidelity : []).filter((r) => r.score1px != null && !r.codeAhead);
   const comments = inbox?.comments || [];
   const open = comments.filter((c) => c.status !== "resolved");
@@ -150,6 +151,7 @@ export async function projectOverview(folder) {
   return {
     hasPrototype: has,
     scope: status.scope || null,
+    intake: briefState(brief, (registry.components || []).length || screens || has),
     backend: status.backend ? { plan: status.backend.plan || null, ref: status.backend.project_ref || null, step: status.backend.step || 0, checkedAt: status.backend.checked_at || null } : null,
     ds: { components: (registry.components || []).length, tokens: Object.keys(tokens.variables || {}).length, storybook: !!status.has_storybook },
     screens: screens ? { count: new Set(screens.screens.map((s) => s.n.replace(/\s*\/\s*(Dark|Light)$/i, ""))).size, exportedAt: screens.exported_at, file: screens.file } : null,
@@ -170,8 +172,33 @@ export async function projectOverview(folder) {
   };
 }
 
-// The five pipeline steps and the one next step, from the overview.
+// Where the intake stands, from Project_Brief.md: the Intake Summary heading gets a real date when the user approves it
+// (template: "## Intake Summary (approved: <date>)"). A project that already has components, screens or a prototype
+// counts as past the intake (older briefs). `next` is the brief's own "Next step" line, when it has one.
+export function briefState(brief, built = false) {
+  const approved = /^##\s*Intake Summary\s*\(approved:\s*(?!<)[^)]*\d[^)]*\)/im.test(brief || "");
+  const lines = [...String(brief || "").matchAll(/^\s*-?\s*Next step[^:\n]*:[ \t]*(.+)$/gim)].map((m) => m[1].trim()).filter((t) => t && !t.startsWith("<"));
+  return { done: approved || !!built, next: lines.length ? lines[lines.length - 1] : null };
+}
+
+// The pipeline steps and the one next step, from the overview.
 export function pipeline(o) {
+  const intake = o.intake || { done: true, next: null };
+  const built = !!(o.ds.components || o.screens || o.hasPrototype);
+  // Nothing built yet: no step is done or waiting, and the next step is the chat (intake or the next phase).
+  if (!built) {
+    const todo = (key, title, text) => ({ key, title, state: "todo", text });
+    const steps = [todo("ds", "Design System", "Starts after the intake."), todo("screens", "Screens (Figma)", "Starts after the design system."),
+      todo("proto", "Live Prototype", "No prototype yet."), todo("review", "Review (Comments)", "Comments come from the live prototype."),
+      todo("sync", "Sync", "Nothing to sync yet.")];
+    if (!intake.done) steps[0].text = "Starts after the intake is approved.";
+    return {
+      steps,
+      next: intake.done
+        ? { title: "Start the next phase", text: intake.next || "The next phase (Discover or Foundation) starts in the chat.", go: "chat", label: "Continue in chat" }
+        : { title: "Finish the intake", text: "Answer the intake questions in the chat; nothing is built before you approve the Intake Summary.", go: "chat", label: "Continue in chat" },
+    };
+  }
   const steps = [];
   steps.push(o.ds.components
     ? { key: "ds", title: "Design System", state: "done", text: `${o.ds.components} components, ${o.ds.tokens} tokens${o.ds.storybook ? ". Storybook built." : "."}` }
@@ -185,7 +212,9 @@ export function pipeline(o) {
     : codeBad ? { key: "proto", title: "Live Prototype", state: "prob", text: `Code check: ${o.code.unknown} unknown names, ${o.code.raw} raw values.` }
     : o.unpublished ? { key: "proto", title: "Live Prototype", state: "wait", text: "Built locally, not published yet." }
     : { key: "proto", title: "Live Prototype", state: "done", text: o.publish?.at ? `Published ${String(o.publish.at).slice(0, 16).replace("T", " ")}.` : "Published." });
-  steps.push(o.comments.open
+  steps.push(!o.hasPrototype && !o.comments.open
+    ? { key: "review", title: "Review (Comments)", state: "todo", text: "Comments come from the live prototype." }
+    : o.comments.open
     ? { key: "review", title: "Review (Comments)", state: "wait", text: `${o.comments.open} open comment${o.comments.open > 1 ? "s" : ""}.` }
     : { key: "review", title: "Review (Comments)", state: "done", text: o.comments.pulledAt ? `No open comments (pulled ${String(o.comments.pulledAt).slice(0, 10)}).` : "No comments pulled yet." });
   if (o.scope === "all" || o.backend) {
@@ -196,8 +225,12 @@ export function pipeline(o) {
   const syncN = o.pendingFigmaSync.length + (o.storybook.unsynced ? 1 : 0);
   steps.push(syncN
     ? { key: "sync", title: "Sync", state: "prob", text: [o.pendingFigmaSync.length ? `${o.pendingFigmaSync.length} change${o.pendingFigmaSync.length > 1 ? "s" : ""} in the prototype, not in Figma.` : "", o.storybook.unsynced ? `${o.storybook.unsynced} Figma change${o.storybook.unsynced > 1 ? "s" : ""} not in Storybook.` : ""].filter(Boolean).join(" ") }
-    : { key: "sync", title: "Sync", state: "done", text: "Prototype, Figma and Storybook agree." });
-  let next = { title: "Everything is up to date", text: "Write in Design to change a screen, or wait for new comments.", go: "design", label: "Open Design" };
+    : { key: "sync", title: "Sync", state: "done", text: o.hasPrototype ? "Prototype, Figma and Storybook agree." : "Nothing out of sync." });
+  // Stages the plan still goes to (status.json > scope): screens, then the live prototype.
+  const ahead = o.scope === "ds" ? false : o.scope === "ds-screens" ? !o.screens : (!o.screens || !o.hasPrototype);
+  let next = ahead
+    ? { title: "Continue the build", text: intake.next || "The next phase starts in the chat.", go: "chat", label: "Continue in chat" }
+    : { title: "Everything is up to date", text: "Write in Design to change a screen, or wait for new comments.", go: "design", label: "Open Design" };
   if (o.comments.open) next = { title: `Triage ${o.comments.open} open comment${o.comments.open > 1 ? "s" : ""}`, text: "Claude proposes a change for each one; nothing is applied without your OK.", go: "review", label: "Open Review" };
   else if (codeBad) next = { title: "Fix the code check", text: "The reference code uses a name or value outside the design system.", go: "design", label: "Open Design" };
   else if (o.unpublished) next = { title: "Publish the prototype", text: "The local build has changes the live link does not have yet.", go: "design", label: "Open Design" };

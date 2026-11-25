@@ -37,7 +37,7 @@ main.project{max-width:1240px;padding:22px 32px 40px}
 .kicker{font:600 11px var(--mono);color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
 .sm{padding:5px 10px!important;font-size:13px!important}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
-.dot.good{background:var(--good)}.dot.bad{background:var(--magenta)}.dot.wait{background:var(--yellow)}.dot.run{background:var(--cyan)}
+.dot.idle{background:var(--ink-3)}.dot.good{background:var(--good)}.dot.bad{background:var(--magenta)}.dot.wait{background:var(--yellow)}.dot.run{background:var(--cyan)}
 .unpub{font:600 11.5px var(--sans);color:var(--magenta-ink);background:var(--magenta-soft);padding:3px 8px;border-radius:999px;white-space:nowrap}
 .grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
 .p-panel{padding:18px;display:grid;gap:12px;align-content:start;background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r)}
@@ -57,6 +57,7 @@ a.ghost.sm,a.primary.sm{text-decoration:none}
 .pipe .wait{box-shadow:inset 0 3px 0 var(--magenta)}.pipe .wait .st{color:var(--magenta-ink)}
 .pipe .run{box-shadow:inset 0 3px 0 var(--cyan)}.pipe .run .st{color:var(--cyan-ink)}
 .pipe .prob{box-shadow:inset 0 3px 0 var(--yellow)}.pipe .prob .st{color:var(--yellow-ink)}
+.pipe .todo .st{color:var(--ink-3)}
 .pipe p{font-size:12.5px;color:var(--ink-2);line-height:1.4}
 .next-step{display:flex;align-items:center;gap:16px;padding:16px 18px;border:1px solid var(--rule);border-left:4px solid var(--magenta);border-radius:var(--r);background:var(--sheet);margin-bottom:16px;flex-wrap:wrap}
 .next-step.ok{border-left-color:var(--good)}
