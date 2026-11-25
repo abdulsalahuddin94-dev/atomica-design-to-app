@@ -4,6 +4,9 @@ Every mistake Abdul reports or a check finds gets one entry here in the session 
 
 Teammates share their lessons through `/contribute` (`CONTRIBUTING.md`); an entry lands here only after Abdul accepts it, marked `(contributed by <login>)`.
 
+## Dashboard chat crashed with "Out of Memory" (2026-11-25)
+1. **The Sanad conversation tab crashed ("Aw, Snap! Out of Memory") and came back blank after Reload (Abdul).** Cause: the dashboard's small Markdown renderer (`markdown()` in `dashboard/public/app.js`) loops forever on a line that looks like a table row (`| a | b |`) with no separator row under it: the table branch skips it and the paragraph loop stops on it without moving on, so it pushed empty paragraphs until the tab ran out of memory. The session itself kept running in the server. Rule: every loop in a text parser moves at least one line per pass; a line no branch takes is plain text. Check: open a conversation whose replies have a lone table-like line (headless Chromium: the page loads and `performance.memory` stays small).
+
 ## Pipeline page said "Everything is up to date" during the intake (2026-11-24)
 1. **A project still in its intake showed Review and Sync as Done and "Everything is up to date" (Abdul, Sanad test).** Cause: `pipeline()` in `dashboard/project-api.mjs` marked a step done when nothing was wrong (no open comments, nothing to sync) and fell back to "Everything is up to date", without asking whether anything had been built. Rule: a step with nothing built yet is "Not started", never Done; before the Intake Summary is approved (its heading has a real date) the next step is "Finish the intake", and while the plan still has stages ahead the next step is the chat with the brief's Next step line; both open a new conversation. Check: `node --test tools/tests/pipeline.test.mjs`.
 

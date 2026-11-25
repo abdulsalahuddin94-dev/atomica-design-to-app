@@ -91,6 +91,9 @@ function markdown(src) {
     if (!line.trim()) { i++; continue; }
     const para = [];
     while (i < lines.length && lines[i].trim() && !/^(```|#{1,4}\s|\s*([-*•]|\d+[.)])\s+)/.test(lines[i]) && !/^\s*\|.*\|\s*$/.test(lines[i])) para.push(lines[i++]);
+    // A table-looking line with no separator row under it is plain text; without this the loop never moved on
+    // and filled the page's memory ("Aw, Snap! Out of Memory", Sanad test 2026-11-25).
+    if (!para.length) para.push(lines[i++]);
     out.push(`<p>${para.map(inline).join("<br>")}</p>`);
   }
   return out.join("");
